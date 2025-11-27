@@ -11,7 +11,6 @@ from typing import Dict, Tuple, Any
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-# Update these if your sheet names are different in the Excel file
 TA_SHEET_NAME = "COMP TA List"
 PROF_SHEET_NAME = "TA Needs Planning"
 
