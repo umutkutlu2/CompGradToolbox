@@ -2,12 +2,12 @@ CREATE DATABASE IF NOT EXISTS TA_Assignment_System;
 USE TA_Assignment_System;
 
 CREATE TABLE IF NOT EXISTS professor (
-    professor_id INT AUTO_INCREMENT PRIMARY KEY,
+    professor_id INT AUTO_INCREMENT PRIMARY KEY UNIQUE,
     name VARCHAR(100) NOT NULL
 );
 
 CREATE TABLE IF NOT EXISTS ta (
-    ta_id INT AUTO_INCREMENT PRIMARY KEY,
+    ta_id INT AUTO_INCREMENT PRIMARY KEY UNIQUE,
     name VARCHAR(100) NOT NULL,
     program VARCHAR(50),
     level ENUM('MS','PhD') DEFAULT 'MS',
@@ -30,7 +30,7 @@ CREATE TABLE IF NOT EXISTS ta_thesis_advisor (
 );
 
 CREATE TABLE IF NOT EXISTS course (
-    course_id INT AUTO_INCREMENT PRIMARY KEY,
+    course_id INT AUTO_INCREMENT PRIMARY KEY UNIQUE,
     course_code VARCHAR(50) NOT NULL,
     ps_lab_sections VARCHAR(100),
     enrollment_capacity INT,
