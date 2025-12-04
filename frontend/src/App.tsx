@@ -52,14 +52,11 @@ export default function App() {
   const [currentPage, setCurrentPage] = useState('dashboard');
   const [userId, setUserId] = useState<number | null>(null);
 
-  const handleLogin = (role: UserRole, id: number) => {
+  const handleLogin = (role: UserRole, id: number, name: string) => {
     setIsLoggedIn(true);
     setUserRole(role);
     setUserId(id);
-    // Optionally, fetch the user's name from API based on id
-    if (role === 'faculty') setUserName('Professor Name');
-    else if (role === 'student') setUserName('TA Name');
-    else setUserName('Admin User');
+    setUserName(name);
   };
 
   const handleLogout = () => {
