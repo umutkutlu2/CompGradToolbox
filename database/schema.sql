@@ -71,6 +71,17 @@ CREATE TABLE IF NOT EXISTS course_preferred_ta (
     PRIMARY KEY (course_id, ta_id)
 );
 
+CREATE TABLE IF NOT EXISTS ta_preferred_course (
+    course_id INT NOT NULL,
+    ta_id INT NOT NULL,
+    interest_level ENUM('High', 'Medium', 'Low') DEFAULT 'Medium',
+    PRIMARY KEY (course_id, ta_id),
+    FOREIGN KEY (course_id) REFERENCES course(course_id)
+        ON DELETE CASCADE ON UPDATE CASCADE,
+    FOREIGN KEY (ta_id) REFERENCES ta(ta_id)
+        ON DELETE CASCADE ON UPDATE CASCADE
+);
+
 CREATE TABLE IF NOT EXISTS ta_preferred_professor (
     ta_id INT NOT NULL,
     professor_id INT NOT NULL,
@@ -91,6 +102,21 @@ CREATE TABLE IF NOT EXISTS professor_preferred_ta (
     PRIMARY KEY (professor_id, ta_id)
 );
 
+CREATE TABLE IF NOT EXISTS ta_skill (
+    ta_id INT NOT NULL,
+    skill VARCHAR(100) NOT NULL,
+    FOREIGN KEY (ta_id) REFERENCES ta(ta_id)
+        ON DELETE CASCADE ON UPDATE CASCADE,
+    PRIMARY KEY (ta_id, skill)
+);
+
+CREATE TABLE IF NOT EXISTS course_skill (
+    course_id INT NOT NULL,
+    skill VARCHAR(100) NOT NULL,
+    FOREIGN KEY (course_id) REFERENCES course(course_id)
+        ON DELETE CASCADE ON UPDATE CASCADE,
+    PRIMARY KEY (course_id, skill)
+);
 
 CREATE TABLE weights (
     id INT PRIMARY KEY AUTO_INCREMENT,
