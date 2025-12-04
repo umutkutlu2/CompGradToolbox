@@ -1,8 +1,10 @@
 import numpy as np
 from itertools import product
-
+from .ta_services import get_all_tas
+from .professors_services import get_all_professors
+from .weight_services import get_weights
 # Example data (to be replaced with DB data later)
-TAs = {
+TAs_HC = {
     "TA1": {"prof_pref": ["ProfA", "ProfB", "ProfC"], "course_pref": ["Course1", "Course2"], "max_hours": 10},
     "TA2": {"prof_pref": ["ProfB", "ProfA", "ProfC"], "course_pref": ["Course2", "Course3"], "max_hours": 8},
     "TA3": {"prof_pref": ["ProfA", "ProfC", "ProfB"], "course_pref": ["Course1", "Course3"], "max_hours": 12},
@@ -11,7 +13,7 @@ TAs = {
     "TA6": {"prof_pref": ["ProfC", "ProfA", "ProfB"], "course_pref": ["Course3", "Course1"], "max_hours": 11},
 }
 
-Professors = {
+Professors_HC = {
     "ProfA": {"ta_pref": ["TA1", "TA3", "TA2", "TA5", "TA6", "TA4"], "num_TAs": 2, "course": "Course1"},
     "ProfB": {"ta_pref": ["TA2", "TA5", "TA1", "TA4", "TA3", "TA6"], "num_TAs": 2, "course": "Course2"},
     "ProfC": {"ta_pref": ["TA4", "TA6", "TA3", "TA2", "TA1", "TA5"], "num_TAs": 2, "course": "Course3"},
@@ -25,6 +27,26 @@ weights = {
     "workload_balance": 0.1
 }
 
+#Fetch Data from DB : Rather than hardcoded
+
+tas_db = get_all_tas()  # returns list of dicts
+TAs = {}
+for ta in tas_db:
+    TAs[ta["name"]] = {
+        "prof_pref": [p["name"] for p in ta.get("preferred_professors", [])],
+        "course_pref": [],  # add if you have course preferences in DB
+        "max_hours": ta["max_hours"]
+    }
+
+professor_db = get_all_professors()
+Professors = {}
+for prof in professor_db:
+    Professors[prof["name"]] = {
+        "ta_pref": [ta["name"] for ta in prof.get("preferred_tas", [])],
+        "num_TAs": 2
+    }
+
+
 
 # Step 1: Normalize ranks to scores
 def rank_to_score(rank, max_rank):
@@ -35,7 +57,10 @@ def rank_to_score(rank, max_rank):
 def compute_weighted_score(ta_name, prof_name, current_workload, avg_workload):
     ta = TAs[ta_name]
     prof = Professors[prof_name]
-    
+
+    #load weights from database
+    weights = get_weights()
+    print(weights)    
     # TA preference for professor
     ta_rank = ta["prof_pref"].index(prof_name) if prof_name in ta["prof_pref"] else len(ta["prof_pref"])
     ta_score = rank_to_score(ta_rank, len(ta["prof_pref"]))
@@ -44,9 +69,9 @@ def compute_weighted_score(ta_name, prof_name, current_workload, avg_workload):
     prof_rank = prof["ta_pref"].index(ta_name) if ta_name in prof["ta_pref"] else len(prof["ta_pref"])
     prof_score = rank_to_score(prof_rank, len(prof["ta_pref"]))
 
-    # TA preference for course
-    course_rank = ta["course_pref"].index(prof["course"]) if prof["course"] in ta["course_pref"] else len(ta["course_pref"])
-    course_score = rank_to_score(course_rank, len(ta["course_pref"]))
+    # # TA preference for course
+    # course_rank = ta["course_pref"].index(prof["course"]) if prof["course"] in ta["course_pref"] else len(ta["course_pref"])
+    # course_score = rank_to_score(course_rank, len(ta["course_pref"]))
 
     # Workload balancing
     workload_diff = abs(current_workload - avg_workload)
@@ -56,10 +81,9 @@ def compute_weighted_score(ta_name, prof_name, current_workload, avg_workload):
 
     # Weighted total
     total_score = (
-        weights["ta_pref"] * ta_score +
-        weights["prof_pref"] * prof_score +
-        weights["course_pref"] * course_score +
-        weights["workload_balance"] * workload_score
+        weights.ta_pref * ta_score +
+        weights.prof_pref * prof_score +
+        weights.workload_balance * workload_score
     )
 
     return total_score
