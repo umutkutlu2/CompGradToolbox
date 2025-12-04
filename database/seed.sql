@@ -26,6 +26,12 @@ VALUES
     (4, 'COMP310', 'PS1,PS2', 100, 95, 2, 2),
     (5, 'COMP330', 'PS1', 80, 70, 1, 0);
 
+INSERT INTO user (username, password, user_type, professor_id)
+VALUES 
+('prof1', 'prof123', 'faculty', 1),
+('ta1', 'ta123', 'student', 1),
+('admin1', 'admin123', 'admin', NULL);
+
 -- COURSE ↔ PROFESSOR
 INSERT IGNORE INTO course_professor (course_id, professor_id)
 VALUES

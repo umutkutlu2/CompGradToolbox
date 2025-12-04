@@ -1,83 +1,64 @@
-import { GraduationCap, Shield } from 'lucide-react';
-import { Button } from './ui/button';
-import { UserRole } from '../App';
+  import { useState } from 'react';
+  import { Button, Input } from './ui/button';
+  import { GraduationCap } from 'lucide-react';
+  import { UserRole } from '../App';
 
-interface LoginScreenProps {
-  onLogin: (role: UserRole) => void;
-}
+  interface LoginScreenProps {
+    onLogin: (role: UserRole, userId: number) => void;
+  }
 
-export default function LoginScreen({ onLogin }: LoginScreenProps) {
-  return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-indigo-50 flex items-center justify-center p-6">
-      <div className="w-full max-w-md">
-        {/* Logo and Title */}
-        <div className="text-center mb-8">
-          <div className="inline-flex items-center justify-center w-16 h-16 bg-blue-600 rounded-2xl mb-4">
-            <GraduationCap className="w-9 h-9 text-white" />
-          </div>
-          <h1 className="text-blue-900 mb-2">Comp Grad Toolbox</h1>
-          <p className="text-neutral-600">
-            TA Assignment & Report Checker for the Computer Engineering Department
-          </p>
-        </div>
+  export default function LoginScreen({ onLogin }: LoginScreenProps) {
+    const [username, setUsername] = useState('');
+    const [password, setPassword] = useState('');
+    const [error, setError] = useState('');
 
-        {/* Login Card */}
-        <div className="bg-white rounded-2xl shadow-sm border border-neutral-200 p-8">
-          <div className="space-y-4">
-            <Button
-              onClick={() => onLogin('faculty')}
-              className="w-full h-12"
-              size="lg"
-            >
-              <Shield className="w-5 h-5 mr-2" />
-              Log in with University Account
-            </Button>
+    const handleSubmit = async () => {
+      try {
+        const res = await fetch('http://localhost:8000/api/login', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ username, password }),
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.detail || 'Login failed');
 
-            {/* Demo role selectors */}
-            <div className="pt-4 border-t border-neutral-200">
-              <p className="text-neutral-500 text-sm mb-3">Demo: Select a role to preview</p>
-              <div className="grid grid-cols-3 gap-2">
-                <Button
-                  onClick={() => onLogin('faculty')}
-                  variant="outline"
-                  size="sm"
-                  className="text-xs"
-                >
-                  Faculty
-                </Button>
-                <Button
-                  onClick={() => onLogin('student')}
-                  variant="outline"
-                  size="sm"
-                  className="text-xs"
-                >
-                  Student
-                </Button>
-                <Button
-                  onClick={() => onLogin('admin')}
-                  variant="outline"
-                  size="sm"
-                  className="text-xs"
-                >
-                  Admin
-                </Button>
-              </div>
+        // Call parent with role and user_id
+        onLogin(data.user_type as UserRole, data.ta_id || data.professor_id || 0);
+      } catch (err: any) {
+        setError(err.message);
+      }
+    };
+
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 via-white to-indigo-50 p-6">
+        <div className="w-full max-w-md bg-white rounded-2xl shadow-sm p-8">
+          <div className="text-center mb-6">
+            <div className="inline-flex items-center justify-center w-16 h-16 bg-blue-600 rounded-2xl mb-4">
+              <GraduationCap className="w-9 h-9 text-white" />
             </div>
+            <h1 className="text-blue-900 text-xl mb-1">Comp Grad Toolbox</h1>
+            <p className="text-neutral-600 text-sm">TA Assignment & Report Checker</p>
           </div>
 
-          <div className="mt-6 pt-6 border-t border-neutral-200">
-            <p className="text-xs text-neutral-500 leading-relaxed">
-              This system processes academic data in accordance with university privacy policies.
-              All data is handled securely and used solely for TA assignment and report validation purposes.
-            </p>
+          <div className="space-y-4">
+            <input
+              type="text"
+              placeholder="Username"
+              className="w-full p-3 border rounded-lg"
+              value={username}
+              onChange={(e) => setUsername(e.target.value)}
+            />
+            <input
+              type="password"
+              placeholder="Password"
+              className="w-full p-3 border rounded-lg"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+            />
+            {error && <p className="text-red-500 text-sm">{error}</p>}
+            <Button onClick={handleSubmit} className="w-full h-12 mt-2">Login</Button>
           </div>
         </div>
-
-        {/* Footer */}
-        <p className="text-center text-xs text-neutral-500 mt-6">
-          Computer Engineering Department © 2025
-        </p>
       </div>
-    </div>
-  );
-}
+    );
+  }

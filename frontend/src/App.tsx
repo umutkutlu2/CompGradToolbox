@@ -50,17 +50,16 @@ export default function App() {
   const [userRole, setUserRole] = useState<UserRole>('faculty');
   const [userName, setUserName] = useState('Dr. Sarah Chen');
   const [currentPage, setCurrentPage] = useState('dashboard');
+  const [userId, setUserId] = useState<number | null>(null);
 
-  const handleLogin = (role: UserRole) => {
+  const handleLogin = (role: UserRole, id: number) => {
     setIsLoggedIn(true);
     setUserRole(role);
-    if (role === 'faculty') {
-      setUserName('Dr. Sarah Chen');
-    } else if (role === 'student') {
-      setUserName('Alex Thompson');
-    } else {
-      setUserName('Admin User');
-    }
+    setUserId(id);
+    // Optionally, fetch the user's name from API based on id
+    if (role === 'faculty') setUserName('Professor Name');
+    else if (role === 'student') setUserName('TA Name');
+    else setUserName('Admin User');
   };
 
   const handleLogout = () => {
@@ -74,12 +73,11 @@ export default function App() {
         return <Dashboard userName={userName} userRole={userRole} onNavigate={setCurrentPage} />;
       case 'ta-assignment':
         if (userRole === 'student') {
-          return <TAProfileStudent />;
+          return <TAProfileStudent taId={userId} />;
         } else if (userRole === 'admin') {
-          return <TAAssignmentCoordinator onNavigate={setCurrentPage} />
-;
+          return <TAAssignmentCoordinator userId={userId} />;
         }
-        return <TAAssignmentFaculty />;
+        return <TAAssignmentFaculty professorId={userId} />;
       case 'comp590':
         return <ReportChecker type="comp590" />;
       case 'comp291-391':

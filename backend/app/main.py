@@ -6,6 +6,7 @@ from app.routes import assignment
 from app.routes import tas
 from app.routes import professors
 from app.routes import weight
+from app.routes import login
 from fastapi.middleware.cors import CORSMiddleware
 
 app = FastAPI()
@@ -19,6 +20,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+app.include_router(login.router, prefix="/api", tags=["Login"])
 app.include_router(algorithm.router, prefix="/api", tags=["Algorithm"])
 app.include_router(algorithm_excel.router, prefix="/api", tags=["Algorithm, Excel"])
 app.include_router(assignment.router, prefix="/api", tags=["Assignment"])

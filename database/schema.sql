@@ -20,6 +20,17 @@ CREATE TABLE IF NOT EXISTS ta (
     max_hours INT DEFAULT 20
 );
 
+CREATE TABLE IF NOT EXISTS user (
+    user_id INT AUTO_INCREMENT PRIMARY KEY,
+    username VARCHAR(50) UNIQUE NOT NULL,
+    password VARCHAR(255) NOT NULL, -- store hashed passwords in production
+    user_type ENUM('student','faculty','admin') NOT NULL,
+    ta_id INT DEFAULT NULL,
+    professor_id INT DEFAULT NULL,
+    FOREIGN KEY (ta_id) REFERENCES ta(ta_id) ON DELETE CASCADE ON UPDATE CASCADE,
+    FOREIGN KEY (professor_id) REFERENCES professor(professor_id) ON DELETE CASCADE ON UPDATE CASCADE
+);
+
 CREATE TABLE IF NOT EXISTS ta_thesis_advisor (
     ta_id INT NOT NULL,
     professor_id INT NOT NULL,
