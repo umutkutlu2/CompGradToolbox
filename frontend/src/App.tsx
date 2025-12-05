@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { use, useState } from 'react';
 import { Home, Users, FileCheck, Settings, BarChart3, Shield } from 'lucide-react';
 import LoginScreen from './components/LoginScreen';
 import Sidebar from './components/Sidebar';
@@ -10,6 +10,8 @@ import TAAssignmentCoordinator from './components/TAAssignmentCoordinator';
 import ReportChecker from './components/ReportChecker';
 import RulesAndWeights from './components/RulesAndWeights';
 import AuditLogs from './components/AuditLogs';
+import PeopleDirectory from './components/PeopleDirectory';
+import TAAssignmentResult from './components/TAAssignmentResult';
 
 export type UserRole = 'faculty' | 'student' | 'admin';
 
@@ -46,19 +48,17 @@ const navigationItems: NavigationItem[] = [
 export default function App() {
   const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [userRole, setUserRole] = useState<UserRole>('faculty');
-  const [userName, setUserName] = useState('Dr. Sarah Chen');
+  const [name, setName] = useState('');
   const [currentPage, setCurrentPage] = useState('dashboard');
+  const [userId, setUserId] = useState<number | null>(null);
+  const [username, setUsername] = useState('');
 
-  const handleLogin = (role: UserRole) => {
+  const handleLogin = (role: UserRole, id: number, name: string, username: string) => {
     setIsLoggedIn(true);
     setUserRole(role);
-    if (role === 'faculty') {
-      setUserName('Dr. Sarah Chen');
-    } else if (role === 'student') {
-      setUserName('Alex Thompson');
-    } else {
-      setUserName('Admin User');
-    }
+    setUserId(id);
+    setName(name);
+    setUsername(username)
   };
 
   const handleLogout = () => {
@@ -69,14 +69,14 @@ export default function App() {
   const renderContent = () => {
     switch (currentPage) {
       case 'dashboard':
-        return <Dashboard userName={userName} userRole={userRole} onNavigate={setCurrentPage} />;
+        return <Dashboard name={name} userRole={userRole} onNavigate={setCurrentPage} />;
       case 'ta-assignment':
         if (userRole === 'student') {
-          return <TAProfileStudent />;
+          return <TAProfileStudent taId={userId} />;
         } else if (userRole === 'admin') {
-          return <TAAssignmentCoordinator />;
+          return <TAAssignmentCoordinator onNavigate={setCurrentPage} />;
         }
-        return <TAAssignmentFaculty />;
+        return <TAAssignmentFaculty userName = {username} />;
       case 'comp590':
         return <ReportChecker type="comp590" />;
       case 'comp291-391':
@@ -85,8 +85,12 @@ export default function App() {
         return <RulesAndWeights />;
       case 'audit-logs':
         return <AuditLogs />;
+      case 'people-directory':
+        return <PeopleDirectory />;
+      case 'ta-assignment-result':
+        return <TAAssignmentResult />;
       default:
-        return <Dashboard userName={userName} userRole={userRole} onNavigate={setCurrentPage} />;
+        return <Dashboard name={name} userRole={userRole} onNavigate={setCurrentPage} />;
     }
   };
 
@@ -125,7 +129,7 @@ export default function App() {
       <div className="flex-1 flex flex-col min-w-0">
         <TopBar
           pageTitle={getPageTitle()}
-          userName={userName}
+          name={name}
           userRole={userRole}
           onLogout={handleLogout}
         />

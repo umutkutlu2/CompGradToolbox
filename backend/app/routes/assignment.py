@@ -1,5 +1,5 @@
 from fastapi import APIRouter, File, UploadFile, HTTPException
-from app.services.assignmentAlgorithm import run_assignment_algorithm
+from app.services.assignmentAlgorithm import run_assignment_algorithm, updateDB
 from app.services.assignment_excel import generate_ta_assignments
 import tempfile
 import os

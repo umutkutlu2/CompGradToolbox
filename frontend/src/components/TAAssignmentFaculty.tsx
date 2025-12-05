@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Search, Edit, Plus, X } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from './ui/card';
 import { Input } from './ui/input';
@@ -21,60 +21,71 @@ import {
 import { Label } from './ui/label';
 import { Textarea } from './ui/textarea';
 
-export default function TAAssignmentFaculty() {
+interface TAAssignmentFacultyProps {
+  userName: string;
+}
+
+type CourseStatus = 'assigned' | 'partial' | 'unassigned';
+
+interface Course {
+  id: string;
+  code: string;
+  name: string;
+  requiredTAs: number;
+  assignedTAs: string[];
+  skills: string[];
+  status: CourseStatus;
+}
+
+
+export default function TAAssignmentFaculty({ userName }: TAAssignmentFacultyProps) {
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedTerm, setSelectedTerm] = useState('fall-2025');
   const [editingCourse, setEditingCourse] = useState<string | null>(null);
+  const [courses, setCourses] = useState<Course[]>([]);
+  const [loading, setLoading] = useState<boolean>(true);
 
-  const courses = [
-    {
-      id: '1',
-      code: 'COMP302',
-      name: 'Programming Languages',
-      requiredTAs: 2,
-      assignedTAs: ['Alex T.', 'Jamie L.'],
-      skills: ['Functional Programming', 'Scala', 'OCaml'],
-      status: 'assigned' as const,
-    },
-    {
-      id: '2',
-      code: 'COMP421',
-      name: 'Database Systems',
-      requiredTAs: 3,
-      assignedTAs: ['Morgan S.', 'Casey P.'],
-      skills: ['SQL', 'Databases', 'PostgreSQL'],
-      status: 'partial' as const,
-    },
-    {
-      id: '3',
-      code: 'COMP424',
-      name: 'Artificial Intelligence',
-      requiredTAs: 2,
-      assignedTAs: [],
-      skills: ['Machine Learning', 'Python', 'AI'],
-      status: 'unassigned' as const,
-    },
-    {
-      id: '4',
-      code: 'COMP310',
-      name: 'Operating Systems',
-      requiredTAs: 2,
-      assignedTAs: ['Taylor K.', 'Jordan M.'],
-      skills: ['C', 'Linux', 'Systems'],
-      status: 'assigned' as const,
-    },
-  ];
+  useEffect(() => {
+  const fetchCourses = async () => {
+    try {
+      setLoading(true);
+      const response = await fetch(
+        `http://127.0.0.1:8000/courses/by-professor?username=${userName}`
+      );
+      if (!response.ok) throw new Error('Failed to fetch courses');
 
-  const getStatusBadge = (status: string) => {
-    switch (status) {
-      case 'assigned':
-        return <Badge className="bg-green-100 text-green-700 border-green-200">Assigned</Badge>;
-      case 'partial':
-        return <Badge className="bg-amber-100 text-amber-700 border-amber-200">Partially Assigned</Badge>;
-      case 'unassigned':
-        return <Badge className="bg-neutral-100 text-neutral-700 border-neutral-200">Not Assigned</Badge>;
-      default:
-        return null;
+      const data = await response.json();
+
+      // Normalize API data: provide defaults for missing fields
+      const normalizedCourses: Course[] = data.map((c: any) => ({
+        id: c.course_id?.toString() ?? '',
+        code: c.course_code ?? 'Unknown',
+        name: c.name ?? '',
+        requiredTAs: c.num_tas_requested ?? 0,
+        assignedTAs: c.assignedTAs ?? [], // default empty array
+        skills: c.skills ?? [],           // default empty array
+        status: c.status ?? 'unassigned',
+      }));
+
+      setCourses(normalizedCourses);
+    } catch (err) {
+      console.error('Error fetching courses:', err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  fetchCourses();
+  }, [userName]);
+
+
+  const getStatusBadge = (requiredTAs: number, assignedTAs: string[]) => {
+    if (assignedTAs.length >= requiredTAs && requiredTAs > 0) {
+      return <Badge className="bg-green-100 text-green-700 border-green-200">Assigned</Badge>;
+    } else if (assignedTAs.length > 0 && assignedTAs.length < requiredTAs) {
+      return <Badge className="bg-amber-100 text-amber-700 border-amber-200">Partially Assigned</Badge>;
+    } else {
+      return <Badge className="bg-neutral-100 text-neutral-700 border-neutral-200">Not Assigned</Badge>;
     }
   };
 
@@ -169,7 +180,7 @@ export default function TAAssignmentFaculty() {
                         <span className="text-sm text-neutral-400">None</span>
                       )}
                     </td>
-                    <td className="py-4 px-4">{getStatusBadge(course.status)}</td>
+                    <td className="py-4 px-4">{getStatusBadge(course.requiredTAs, course.assignedTAs)}</td>
                     <td className="py-4 px-4">
                       <Button
                         variant="ghost"

@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect} from 'react';
 import { Play, Download, Info, Edit2, X } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from './ui/card';
 import { Button } from './ui/button';
@@ -22,13 +22,20 @@ import {
   SelectValue,
 } from './ui/select';
 
-export default function TAAssignmentCoordinator() {
+interface TAAssignmentCoordinatorProps {
+  onNavigate: (page: string) => void;
+}
+
+export default function TAAssignmentCoordinator({ onNavigate }: TAAssignmentCoordinatorProps) {
   const [skillWeight, setSkillWeight] = useState([70]);
   const [facultyPrefWeight, setFacultyPrefWeight] = useState([60]);
   const [taPrefWeight, setTaPrefWeight] = useState([50]);
   const [workloadWeight, setWorkloadWeight] = useState([80]);
   const [detailsOpen, setDetailsOpen] = useState(false);
   const [selectedCourse, setSelectedCourse] = useState<any>(null);
+  const [loading, setLoading] = useState(false);
+  const [result, setResult] = useState<any>(null);
+
 
   const assignmentsByCourse = [
     {
@@ -95,6 +102,67 @@ export default function TAAssignmentCoordinator() {
     setDetailsOpen(true);
   };
 
+  const runAssignment = async () => {
+    setLoading(true)
+    try {
+      const res = await fetch("/api/run-assignment", { method: "GET" });
+      const data = await res.json();
+      saveWeights();
+      setResult(data);
+      console.log("Assignment result:", data);
+
+    if (data) {
+      onNavigate('ta-assignment-result');
+    }
+    } catch (err) {
+      console.error("Failed to run assignment", err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+  const fetchWeights = async () => {
+    try {
+      const res = await fetch('/api/weights');
+      const data = await res.json();
+      setSkillWeight([Math.round(data.course_pref * 100)]);
+      setFacultyPrefWeight([Math.round(data.prof_pref * 100)]);
+      setTaPrefWeight([Math.round(data.ta_pref * 100)]);
+      setWorkloadWeight([Math.round(data.workload_balance * 100)]);
+    } catch (err) {
+      console.error("Failed to fetch weights", err);
+    }
+  };
+
+  fetchWeights();
+  }, []);
+
+  const saveWeights = async () => {
+    try {
+      const payload = {
+        ta_pref: taPrefWeight[0] / 100,
+        prof_pref: facultyPrefWeight[0] / 100,
+        course_pref: skillWeight[0] / 100,
+        workload_balance: workloadWeight[0] / 100,
+      };
+      const res = await fetch('/api/weights', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+
+      const data = await res.json();
+      if (data.success) {
+        console.log("Weights updated successfully");
+      }
+    } catch (err) {
+      console.error("Failed to save weights", err);
+    }
+  };
+
+
+
   return (
     <div className="space-y-6">
       {/* Weight Controls */}
@@ -114,7 +182,10 @@ export default function TAAssignmentCoordinator() {
               </div>
               <Slider
                 value={skillWeight}
-                onValueChange={setSkillWeight}
+                onValueChange={(val: number[]) => {
+                  setSkillWeight(val);
+                  saveWeights();
+                }}
                 max={100}
                 step={5}
               />
@@ -127,7 +198,10 @@ export default function TAAssignmentCoordinator() {
               </div>
               <Slider
                 value={facultyPrefWeight}
-                onValueChange={setFacultyPrefWeight}
+                onValueChange={(val: number[]) => {
+                  setFacultyPrefWeight(val);
+                  saveWeights();
+                }}
                 max={100}
                 step={5}
               />
@@ -140,7 +214,10 @@ export default function TAAssignmentCoordinator() {
               </div>
               <Slider
                 value={taPrefWeight}
-                onValueChange={setTaPrefWeight}
+                onValueChange={(val: number[]) => {
+                  setTaPrefWeight(val);
+                  saveWeights();
+                }}
                 max={100}
                 step={5}
               />
@@ -153,7 +230,10 @@ export default function TAAssignmentCoordinator() {
               </div>
               <Slider
                 value={workloadWeight}
-                onValueChange={setWorkloadWeight}
+                onValueChange={(val: number[]) => {
+                  setWorkloadWeight(val);
+                  saveWeights();
+                }}
                 max={100}
                 step={5}
               />
@@ -173,7 +253,7 @@ export default function TAAssignmentCoordinator() {
           </div>
 
           <div className="mt-6 flex gap-3">
-            <Button size="lg" className="gap-2">
+            <Button size="lg" className="gap-2" onClick={runAssignment}>
               <Play className="w-4 h-4" />
               Run Assignment
             </Button>
