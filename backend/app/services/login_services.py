@@ -7,7 +7,6 @@ def authenticate_user(username: str, password: str) -> dict | None:
     """
     with get_db_connection() as conn:
         cursor = conn.cursor(dictionary=True)
-        # First, get the user
         cursor.execute(
             """
             SELECT user_id, username, user_type, ta_id, professor_id
