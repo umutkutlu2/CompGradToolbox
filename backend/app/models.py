@@ -20,3 +20,4 @@ class Course(BaseModel):
     num_tas_requested: Optional[int] = None
     assigned_tas_count: Optional[int] = None
     skills: List[str] = []
+    assignedTAs: List[str] = []

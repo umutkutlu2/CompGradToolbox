@@ -79,16 +79,13 @@ export default function TAAssignmentFaculty({ userName }: TAAssignmentFacultyPro
   }, [userName]);
 
 
-  const getStatusBadge = (status: string) => {
-    switch (status) {
-      case 'assigned':
-        return <Badge className="bg-green-100 text-green-700 border-green-200">Assigned</Badge>;
-      case 'partial':
-        return <Badge className="bg-amber-100 text-amber-700 border-amber-200">Partially Assigned</Badge>;
-      case 'unassigned':
-        return <Badge className="bg-neutral-100 text-neutral-700 border-neutral-200">Not Assigned</Badge>;
-      default:
-        return null;
+  const getStatusBadge = (requiredTAs: number, assignedTAs: string[]) => {
+    if (assignedTAs.length >= requiredTAs && requiredTAs > 0) {
+      return <Badge className="bg-green-100 text-green-700 border-green-200">Assigned</Badge>;
+    } else if (assignedTAs.length > 0 && assignedTAs.length < requiredTAs) {
+      return <Badge className="bg-amber-100 text-amber-700 border-amber-200">Partially Assigned</Badge>;
+    } else {
+      return <Badge className="bg-neutral-100 text-neutral-700 border-neutral-200">Not Assigned</Badge>;
     }
   };
 
@@ -183,7 +180,7 @@ export default function TAAssignmentFaculty({ userName }: TAAssignmentFacultyPro
                         <span className="text-sm text-neutral-400">None</span>
                       )}
                     </td>
-                    <td className="py-4 px-4">{getStatusBadge(course.status)}</td>
+                    <td className="py-4 px-4">{getStatusBadge(course.requiredTAs, course.assignedTAs)}</td>
                     <td className="py-4 px-4">
                       <Button
                         variant="ghost"

@@ -105,7 +105,7 @@ export default function TAAssignmentCoordinator({ onNavigate }: TAAssignmentCoor
   const runAssignment = async () => {
     setLoading(true)
     try {
-      const res = await fetch("/api/run-assignment");
+      const res = await fetch("/api/run-assignment", { method: "GET" });
       const data = await res.json();
       saveWeights();
       setResult(data);
