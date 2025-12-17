@@ -27,7 +27,11 @@ class Course(BaseModel):
     assigned_tas_count: Optional[int] = None
     skills: List[str] = []
     assignedTAs: List[str] = []
+    professor_name: Optional[str] = None  # ✅ ADD THIS
 
+
+class CourseDetails(Course):
+    professors: List[str] = []
 
 
 class TAOnboardingRequest(BaseModel):
@@ -52,3 +56,8 @@ class FacultyOnboardingRequest(BaseModel):
     name: str = Field(min_length=2)
 
     preferred_tas: List[int] = Field(default_factory=list)
+
+class CourseCreate(BaseModel):
+    course_code: str = Field(..., min_length=2, max_length=50)
+    num_tas_requested: Optional[int] = 0
+    skills: List[str] = []

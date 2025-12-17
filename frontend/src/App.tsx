@@ -1,5 +1,5 @@
 import { use, useState } from 'react';
-import { Home, Users, FileCheck, Settings, BarChart3, Shield } from 'lucide-react';
+import { Home, Users, FileCheck, Settings, BarChart3, Shield, BookOpen } from 'lucide-react';
 import LoginScreen from './components/LoginScreen';
 import RegisterScreen from './components/RegisterScreen';
 import Sidebar from './components/Sidebar';
@@ -13,6 +13,8 @@ import RulesAndWeights from './components/RulesAndWeights';
 import AuditLogs from './components/AuditLogs';
 import PeopleDirectory from './components/PeopleDirectory';
 import TAAssignmentResult from './components/TAAssignmentResult';
+import FacultyProfile  from './components/FacultyProfile';
+import TACourses from './components/TACourses';
 
 export type UserRole = 'faculty' | 'student' | 'admin';
 
@@ -25,6 +27,7 @@ export type NavigationItem = {
 
 const navigationItems: NavigationItem[] = [
   { id: 'dashboard', label: 'Dashboard', icon: Home },
+  { id: 'profile', label: 'My Courses', icon: BookOpen },
   { id: 'ta-assignment', label: 'TA Assignment', icon: Users },
   {
     id: 'report-checkers',
@@ -45,7 +48,7 @@ const navigationItems: NavigationItem[] = [
     ],
   },
 ];
-export type AuthPage = 'login' | 'register' | 'app';
+export type AuthPage = 'login' | 'register' | 'app' | 'onboarding';
  
 export default function App() {
   const [isLoggedIn, setIsLoggedIn] = useState(false);
@@ -56,28 +59,32 @@ export default function App() {
   const [username, setUsername] = useState('');
   const [authPage, setAuthPage] = useState<AuthPage>('login');
   const [onboardingRequired, setOnboardingRequired] = useState(false);
+  const [taId, setTaId] = useState<number | null>(null);           
+  const [professorId, setProfessorId] = useState<number | null>(null); 
 
 
-  const handleLogin = (
-    role: UserRole,
-    id: number,
-    name: string,
-    username: string,
-    onboardingRequiredFromBackend: boolean
-  ) => {
-    setIsLoggedIn(true);
-    setUserRole(role);
-    setUserId(id);
-    setName(name);
-    setUsername(username);
-    setOnboardingRequired(onboardingRequiredFromBackend);
 
-    if (onboardingRequiredFromBackend) {
-      setAuthPage("register");
-    } else {
-      setAuthPage("app");
-    }
-  };
+const handleLogin = (
+  role: UserRole,
+  user_id: number,
+  name: string,
+  username: string,
+  onboardingRequiredFromBackend: boolean,
+  ta_id?: number | null,
+  professor_id?: number | null
+) => {
+  setIsLoggedIn(true);
+  setUserRole(role);
+  setUserId(user_id);
+  setTaId(ta_id ?? null);
+  setProfessorId(professor_id ?? null);
+  setName(name ?? username); // prevents name null crashes
+  setUsername(username);
+  setOnboardingRequired(onboardingRequiredFromBackend);
+
+  setAuthPage(onboardingRequiredFromBackend ? "register" : "app");
+};
+
 
 
 
@@ -91,10 +98,10 @@ export default function App() {
   const renderContent = () => {
     switch (currentPage) {
       case 'dashboard':
-        return <Dashboard name={name} userRole={userRole} onNavigate={setCurrentPage} />;
+          return <Dashboard name={name} userRole={userRole} username={username} onNavigate={setCurrentPage} />;
       case 'ta-assignment':
         if (userRole === 'student') {
-          return <TAProfileStudent taId={userId} />;
+          return <TAProfileStudent taId={taId} />;
         } else if (userRole === 'admin') {
           return <TAAssignmentCoordinator name={name} onNavigate={setCurrentPage} />;
         }
@@ -111,8 +118,14 @@ export default function App() {
         return <PeopleDirectory />;
       case 'ta-assignment-result':
         return <TAAssignmentResult />;
+
+      case 'profile':
+        if (userRole === 'faculty')
+          return <FacultyProfile username={username} />;
+        if (userRole === 'student')
+          return <TACourses username={username} />;
       default:
-        return <Dashboard name={name} userRole={userRole} onNavigate={setCurrentPage} />;
+        return <Dashboard name={name} username={username} userRole={userRole} onNavigate={setCurrentPage} />;
     }
   };
 

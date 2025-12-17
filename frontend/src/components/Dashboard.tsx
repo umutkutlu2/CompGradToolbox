@@ -1,4 +1,4 @@
-import { Users, FileCheck, ArrowRight, CheckCircle2, AlertCircle, Clock } from 'lucide-react';
+import { Users, FileCheck, ArrowRight, CheckCircle2, AlertCircle, Clock, BookOpen } from 'lucide-react';
 import { UserRole } from '../App';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from './ui/card';
 import { Button } from './ui/button';
@@ -8,6 +8,7 @@ import { useEffect, useState } from 'react';
 interface DashboardProps {
   name: string;
   userRole: UserRole;
+  username: string;
   onNavigate: (page: string) => void;
 }
 interface ActivityLog {
@@ -31,9 +32,24 @@ function parseCourseUpdateLog(log: string) {
   };
 }
 
+function formatTimeAgo(minutes: number): string {
+  if (minutes < 60) {
+    return `${minutes} minute${minutes === 1 ? "" : "s"} ago`;
+  }
+
+  const hours = Math.floor(minutes / 60);
+  if (hours < 24) {
+    return `${hours} hour${hours === 1 ? "" : "s"} ago`;
+  }
+
+  const days = Math.floor(hours / 24);
+  return `${days} day${days === 1 ? "" : "s"} ago`;
+}
 
 
-export default function Dashboard({ name, userRole, onNavigate }: DashboardProps) {
+
+
+export default function Dashboard({ name, userRole, username, onNavigate }: DashboardProps) {
   const getRoleLabel = () => {
     switch (userRole) {
       case 'faculty':
@@ -46,6 +62,53 @@ export default function Dashboard({ name, userRole, onNavigate }: DashboardProps
         return 'User';
     }
   };
+
+  const [facultyCourseSummary, setFacultyCourseSummary] = useState({
+    courseCount: 0,
+    tasAssigned: 0,
+    emptyPositions: 0,
+  });
+
+  useEffect(() => {
+    const fetchFacultyCourses = async () => {
+      if (userRole !== "faculty" || !username) return;
+
+      try {
+        const res = await fetch(
+          `http://127.0.0.1:8000/courses/by-professor?username=${username}`
+        );
+        if (!res.ok) throw new Error("Failed to fetch faculty courses");
+
+        const courses = await res.json();
+
+        const summary = (courses ?? []).reduce(
+          (acc: any, c: any) => {
+            const requested = Number(c.num_tas_requested ?? 0);
+
+            // Prefer assignedTAs length if present, else fallback to assigned_tas_count
+            const assigned =
+              Array.isArray(c.assignedTAs)
+                ? c.assignedTAs.length
+                : Number(c.assigned_tas_count ?? 0);
+
+            acc.courseCount += 1;
+            acc.tasAssigned += assigned;
+            acc.emptyPositions += Math.max(0, requested - assigned);
+            return acc;
+          },
+          { courseCount: 0, tasAssigned: 0, emptyPositions: 0 }
+        );
+
+        setFacultyCourseSummary(summary);
+      } catch (err) {
+        console.error("Failed to load faculty course summary:", err);
+      }
+    };
+
+    fetchFacultyCourses();
+  }, [userRole, username]);
+
+
 
   const [summary, setSummary] = useState({
     courses: 0,
@@ -164,6 +227,52 @@ export default function Dashboard({ name, userRole, onNavigate }: DashboardProps
               </div>
             </CardContent>
           </Card>
+          {userRole === "faculty" && (
+            <Card>
+              <CardHeader>
+                <div className="flex items-start justify-between">
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 bg-blue-100 rounded-xl flex items-center justify-center">
+                      <BookOpen className="w-5 h-5 text-blue-700" />
+                    </div>
+                    <div>
+                      <CardTitle>My Courses</CardTitle>
+                      <CardDescription>Your courses overview</CardDescription>
+                    </div>
+                  </div>
+                </div>
+              </CardHeader>
+
+              <CardContent className="space-y-4">
+                {/* Colored summary cards (same style as Report Checkers) */}
+                <div className="grid grid-cols-3 gap-3">
+                  <div className="bg-neutral-50 rounded-lg p-3">
+                    <div className="text-lg text-neutral-900">{facultyCourseSummary.courseCount}</div>
+                    <div className="text-xs text-neutral-500">Courses</div>
+                  </div>
+
+                  <div className="bg-green-50 rounded-lg p-3">
+                    <div className="text-lg text-green-700">{facultyCourseSummary.tasAssigned}</div>
+                    <div className="text-xs text-green-600">TAs assigned</div>
+                  </div>
+
+                  <div className="bg-amber-50 rounded-lg p-3">
+                    <div className="text-lg text-amber-700">{facultyCourseSummary.emptyPositions}</div>
+                    <div className="text-xs text-amber-600">Empty positions</div>
+                  </div>
+                </div>
+
+                <div className="pt-2">
+                  <Button onClick={() => onNavigate("profile")} className="w-full sm:w-auto">
+                    Manage My Courses
+                    <ArrowRight className="w-4 h-4 ml-2" />
+                  </Button>
+                </div>
+              </CardContent>
+
+            </Card>
+          )}
+
           {/* People Directory */}
           <Card>
             <CardHeader>
@@ -302,11 +411,10 @@ export default function Dashboard({ name, userRole, onNavigate }: DashboardProps
                         <>
                           <div className="text-sm text-neutral-900">{item.action}</div>
                           <div className="text-xs text-neutral-500 mt-0.5">
-                            {item.user} • {item.time}
+                            {item.user} • {formatTimeAgo(item.minutes_ago)}
                           </div>
                         </>
                       ) : (
-                        // 🟪 SPECIAL RENDER FOR COURSE UPDATE LOGS
                         <>
                           <div className="text-sm text-neutral-900">
                             Updated course 
@@ -314,7 +422,7 @@ export default function Dashboard({ name, userRole, onNavigate }: DashboardProps
                           </div>
 
                           <div className="text-xs text-neutral-500 mt-0.5">
-                            {item.user} • {item.time}
+                            {item.user} • {formatTimeAgo(item.minutes_ago)}
                           </div>
 
                           {/* TA REQUESTED */}

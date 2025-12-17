@@ -12,7 +12,9 @@
       userId: number,
       name: Name,
       username: Username,
-      onboardingRequired: boolean
+      onboardingRequired: boolean,
+      ta_id: number,
+      professor_id: number,
     ) => void;
     onGoRegister: () => void;
   }
@@ -35,13 +37,17 @@
         if (!res.ok) throw new Error(data.detail || 'Login failed');
 
         // Call parent with role and user_id
-      onLogin(
-        data.user_type,
-        data.ta_id || data.professor_id || 0,
-        data.name,
-        data.username,
-        data.onboarding_required
-      );
+        onLogin(
+          data.user_type,
+          data.user_id,
+          data.name,
+          data.username,
+          data.onboarding_required,
+          data.ta_id,
+          data.professor_id
+        );
+
+
       } catch (err: any) {
         setError(err.message);
       }
