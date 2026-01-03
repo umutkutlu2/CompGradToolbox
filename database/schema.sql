@@ -185,5 +185,16 @@ CREATE TABLE IF NOT EXISTS assignment_run_item (
   FOREIGN KEY (ta_id) REFERENCES ta(ta_id) ON DELETE CASCADE
 );
 
+CREATE TABLE IF NOT EXISTS pending_registration (
+  pending_id INT AUTO_INCREMENT PRIMARY KEY,
+  name VARCHAR(255) NOT NULL,
+  username VARCHAR(255) NOT NULL UNIQUE,
+  password_hash VARCHAR(255) NOT NULL,
+  role ENUM('student','faculty','admin') NOT NULL,
+  token VARCHAR(64) NOT NULL UNIQUE,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  expires_at TIMESTAMP NOT NULL
+);
 
+CREATE INDEX idx_pending_expires ON pending_registration (expires_at);
 CREATE INDEX idx_assignment_run_ta_ta ON assignment_run_ta (ta_id, run_id);

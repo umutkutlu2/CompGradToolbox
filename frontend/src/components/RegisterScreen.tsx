@@ -36,7 +36,9 @@ interface RegisterScreenProps {
     userId: number,
     name: string,
     username: string,
-    onboardingRequired: boolean
+    onboardingRequired: boolean,
+    ta_id?: number | null,
+    professor_id?: number | null
   ) => void;
 }
 
@@ -53,13 +55,17 @@ export default function RegisterScreen({
 
   type TASubStep = "basics" | "preferences";
   const [taSubStep, setTaSubStep] = useState<TASubStep>("basics");
-  
+
   /* ---------- Account ---------- */
   const [role, setRole] = useState<UserRole>("student");
   const [name, setName] = useState("");
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
-  const [userId, setUserId] = useState<number | null>(null);
+
+  // NEW: two-phase registration token
+  const [registrationToken, setRegistrationToken] = useState<string | null>(
+    null
+  );
 
   /* ---------- TA onboarding ---------- */
   const [program, setProgram] = useState("CS");
@@ -71,7 +77,9 @@ export default function RegisterScreen({
   const [skillsText, setSkillsText] = useState("");
 
   const [professors, setProfessors] = useState<Professor[]>([]);
-  const [selectedProfessorIds, setSelectedProfessorIds] = useState<number[]>([]);
+  const [selectedProfessorIds, setSelectedProfessorIds] = useState<number[]>(
+    []
+  );
   const [profPopoverOpen, setProfPopoverOpen] = useState(false);
   const [profSearch, setProfSearch] = useState("");
 
@@ -157,12 +165,15 @@ export default function RegisterScreen({
     const data = await res.json();
     if (!res.ok) throw new Error(data.detail || "Auto-login failed");
 
+    // FIX: pass the real user_id to App.handleLogin
     onAutoLogin(
       data.user_type,
-      data.ta_id || data.professor_id || 0,
+      data.user_id,
       data.name,
       data.username,
-      data.onboarding_required
+      data.onboarding_required,
+      data.ta_id ?? null,
+      data.professor_id ?? null
     );
   };
 
@@ -170,6 +181,11 @@ export default function RegisterScreen({
     setError("");
     setRole(picked);
     setStep("account");
+
+    // optional UX reset
+    setTaSubStep("basics");
+    setSelectedProfessorIds([]);
+    setSelectedTaIds([]);
   };
 
   /* ================= HANDLERS ================= */
@@ -182,6 +198,7 @@ export default function RegisterScreen({
       if (!isNonEmpty(username)) throw new Error("Username is required");
       if (!isNonEmpty(password)) throw new Error("Password is required");
 
+      // Phase 1: start registration -> get registration_token (no user created yet)
       const res = await fetch(`${apiBase}/api/register`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -191,8 +208,11 @@ export default function RegisterScreen({
       const data = await res.json();
       if (!res.ok) throw new Error(data.detail || "Registration failed");
 
-      if (!data.user_id) throw new Error("user_id missing from response");
-      setUserId(data.user_id);
+      if (!data.registration_token) {
+        throw new Error("registration_token missing from response");
+      }
+
+      setRegistrationToken(data.registration_token);
 
       setStep(role === "student" ? "ta" : "faculty");
     } catch (e: any) {
@@ -202,29 +222,36 @@ export default function RegisterScreen({
 
   const handleTAOnboard = async () => {
     try {
-      if (!userId) throw new Error("Missing userId");
+      setError("");
+      if (!registrationToken) throw new Error("Missing registration token");
 
       const skills = parseCsvStrings(skillsText);
 
-      const res = await fetch(`${apiBase}/api/ta/onboard`, {
+      // Phase 2: finish registration (atomic: create user + ta + links)
+      const res = await fetch(`${apiBase}/api/register/finish`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          user_id: userId,
-          name,
-          program,
-          level,
-          background,
-          admit_term: admitTerm,
-          standing,
-          max_hours: maxHours,
-          skills,
-          preferred_professors: selectedProfessorIds,
+          registration_token: registrationToken,
+          data: {
+            name,
+            program,
+            level,
+            background,
+            admit_term: admitTerm,
+            standing,
+            max_hours: maxHours,
+            skills,
+            preferred_professors: selectedProfessorIds,
+          },
         }),
       });
 
       const data = await res.json();
-      if (!res.ok) throw new Error(data.detail || "TA onboarding failed");
+      if (!res.ok) throw new Error(data.detail || "Finish registration failed");
+
+      // token is single-use once finished
+      setRegistrationToken(null);
 
       await autoLogin();
     } catch (e: any) {
@@ -234,20 +261,25 @@ export default function RegisterScreen({
 
   const handleFacultyOnboard = async () => {
     try {
-      if (!userId) throw new Error("Missing userId");
+      setError("");
+      if (!registrationToken) throw new Error("Missing registration token");
 
-      const res = await fetch(`${apiBase}/api/faculty/onboard`, {
+      const res = await fetch(`${apiBase}/api/register/finish`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          user_id: userId,
-          name,
-          preferred_tas: selectedTaIds,
+          registration_token: registrationToken,
+          data: {
+            name,
+            preferred_tas: selectedTaIds,
+          },
         }),
       });
 
       const data = await res.json();
-      if (!res.ok) throw new Error(data.detail || "Faculty onboarding failed");
+      if (!res.ok) throw new Error(data.detail || "Finish registration failed");
+
+      setRegistrationToken(null);
 
       await autoLogin();
     } catch (e: any) {
@@ -265,7 +297,8 @@ export default function RegisterScreen({
   };
 
   const Subtitle = () => {
-    if (step === "role") return "You can change this later, but it helps us tailor your setup.";
+    if (step === "role")
+      return "You can change this later, but it helps us tailor your setup.";
     if (step === "account") return "Use a username you'll remember.";
     if (step === "ta") return "Add your academic details and preferences.";
     return "Pick preferred TAs (optional) to speed up matching.";
@@ -279,16 +312,16 @@ export default function RegisterScreen({
     onRemove: (id: number) => void;
   }) => {
     if (items.length === 0) {
-      return (
-        <div className="text-neutral-500">
-          None selected yet
-        </div>
-      );
+      return <div className="text-neutral-500">None selected yet</div>;
     }
     return (
       <div className="flex flex-wrap gap-2">
         {items.map((it) => (
-          <Badge key={it.id} variant="outline" className="gap-1.5 py-1.5 px-3 bg-white border-neutral-300 hover:border-neutral-400 transition-colors">
+          <Badge
+            key={it.id}
+            variant="outline"
+            className="gap-1.5 py-1.5 px-3 bg-white border-neutral-300 hover:border-neutral-400 transition-colors"
+          >
             {it.label}
             <button
               type="button"
@@ -317,15 +350,17 @@ export default function RegisterScreen({
       return t ? { id, label: t.name } : null;
     })
     .filter(Boolean) as { id: number; label: string }[];
-  
+
   const containerWidth =
-  step === "ta" || step === "faculty" ? "max-w-lg" : "max-w-md";
+    step === "ta" || step === "faculty" ? "max-w-lg" : "max-w-md";
 
   /* ================= UI ================= */
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50 p-4 md:p-6">
-     <div className={`${containerWidth} bg-white/80 backdrop-blur-sm rounded-3xl shadow-xl border border-white/50 p-6 md:p-8`}>
+      <div
+        className={`${containerWidth} bg-white/80 backdrop-blur-sm rounded-3xl shadow-xl border border-white/50 p-6 md:p-8`}
+      >
         <div className="text-center mb-6">
           <div className="inline-flex items-center justify-center w-14 h-14 bg-gradient-to-br from-blue-600 to-indigo-600 rounded-3xl mb-4 shadow-lg shadow-blue-500/30">
             <GraduationCap className="w-8 h-8 text-white" />
@@ -440,7 +475,7 @@ export default function RegisterScreen({
                   onChange={(e) => setName(e.target.value)}
                 />
               </div>
-              
+
               <div>
                 <label className="block text-neutral-700 font-medium mb-2">
                   Username
@@ -452,7 +487,7 @@ export default function RegisterScreen({
                   onChange={(e) => setUsername(e.target.value)}
                 />
               </div>
-              
+
               <div>
                 <label className="block text-neutral-700 font-medium mb-2">
                   Password
@@ -468,7 +503,10 @@ export default function RegisterScreen({
             </div>
 
             <div className="pt-2 space-y-3">
-              <Button onClick={handleAccountNext} className="w-full h-12 rounded-xl bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 shadow-lg shadow-blue-500/30">
+              <Button
+                onClick={handleAccountNext}
+                className="w-full h-12 rounded-xl bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 shadow-lg shadow-blue-500/30"
+              >
                 Continue
               </Button>
 
@@ -485,355 +523,372 @@ export default function RegisterScreen({
 
         {/* TA */}
         {step === "ta" && (
-        <div className="space-y-6">
-          {/* Sub-step header with progress */}
-          <div className="flex items-center justify-between gap-3 mb-2">
-            <div>
-              <div className="font-semibold text-neutral-900">TA setup</div>
-              <div className="text-neutral-600">
-                {taSubStep === "basics"
-                  ? "Step 1 of 2 — Basic details"
-                  : "Step 2 of 2 — Skills & preferences"}
+          <div className="space-y-6">
+            {/* Sub-step header with progress */}
+            <div className="flex items-center justify-between gap-3 mb-2">
+              <div>
+                <div className="font-semibold text-neutral-900">TA setup</div>
+                <div className="text-neutral-600">
+                  {taSubStep === "basics"
+                    ? "Step 1 of 2 — Basic details"
+                    : "Step 2 of 2 — Skills & preferences"}
+                </div>
+              </div>
+
+              <div className="flex gap-2">
+                <button
+                  type="button"
+                  onClick={() => setTaSubStep("basics")}
+                  className={`px-4 py-1.5 rounded-full border-2 transition-all ${
+                    taSubStep === "basics"
+                      ? "bg-blue-600 border-blue-600 text-white shadow-lg shadow-blue-500/30"
+                      : "bg-white border-neutral-300 text-neutral-600 hover:bg-neutral-50"
+                  }`}
+                >
+                  Basics
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setTaSubStep("preferences")}
+                  className={`px-4 py-1.5 rounded-full border-2 transition-all ${
+                    taSubStep === "preferences"
+                      ? "bg-blue-600 border-blue-600 text-white shadow-lg shadow-blue-500/30"
+                      : "bg-white border-neutral-300 text-neutral-600 hover:bg-neutral-50"
+                  }`}
+                >
+                  Preferences
+                </button>
               </div>
             </div>
 
-            <div className="flex gap-2">
-              <button
-                type="button"
-                onClick={() => setTaSubStep("basics")}
-                className={`px-4 py-1.5 rounded-full border-2 transition-all ${
-                  taSubStep === "basics"
-                    ? "bg-blue-600 border-blue-600 text-white shadow-lg shadow-blue-500/30"
-                    : "bg-white border-neutral-300 text-neutral-600 hover:bg-neutral-50"
-                }`}
-              >
-                Basics
-              </button>
-              <button
-                type="button"
-                onClick={() => setTaSubStep("preferences")}
-                className={`px-4 py-1.5 rounded-full border-2 transition-all ${
-                  taSubStep === "preferences"
-                    ? "bg-blue-600 border-blue-600 text-white shadow-lg shadow-blue-500/30"
-                    : "bg-white border-neutral-300 text-neutral-600 hover:bg-neutral-50"
-                }`}
-              >
-                Preferences
-              </button>
+            {/* Progress bar */}
+            <div className="w-full h-2 bg-neutral-200 rounded-full overflow-hidden">
+              <div
+                className="h-full bg-gradient-to-r from-blue-500 to-indigo-500 transition-all duration-500 ease-out"
+                style={{ width: taSubStep === "basics" ? "50%" : "100%" }}
+              />
             </div>
-          </div>
 
-          {/* Progress bar */}
-          <div className="w-full h-2 bg-neutral-200 rounded-full overflow-hidden">
-            <div 
-              className="h-full bg-gradient-to-r from-blue-500 to-indigo-500 transition-all duration-500 ease-out"
-              style={{ width: taSubStep === "basics" ? "50%" : "100%" }}
-            />
-          </div>
-
-          {/* Form content - single column layout */}
-          <div className="space-y-6">
-            {/* ===== BASICS ===== */}
-            {taSubStep === "basics" && (
-              <div className="rounded-2xl border-2 border-neutral-200 bg-gradient-to-br from-white to-neutral-50 p-6 space-y-6 shadow-sm">
-                <div className="flex items-start justify-between gap-4">
-                  <div>
-                    <div className="font-semibold text-neutral-900 mb-1">
-                      Basic Information
-                    </div>
-                    <div className="text-neutral-600">
-                      Keep it short — you can refine later.
-                    </div>
-                  </div>
-                </div>
-
-                {/* Grid fields */}
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
-                  <div className="space-y-2">
-                    <label className="font-medium text-neutral-700">
-                      Program
-                    </label>
-                    <input
-                      className="w-full p-3.5 border-2 border-neutral-200 rounded-xl focus:outline-none focus:border-blue-500 focus:ring-4 focus:ring-blue-100 transition-all"
-                      placeholder="e.g., CS"
-                      value={program}
-                      onChange={(e) => setProgram(e.target.value)}
-                    />
-                  </div>
-
-                  <div className="space-y-2">
-                    <label className="font-medium text-neutral-700">
-                      Level
-                    </label>
-                    <select
-                      className="w-full p-3.5 border-2 border-neutral-200 rounded-xl focus:outline-none focus:border-blue-500 focus:ring-4 focus:ring-blue-100 transition-all bg-white"
-                      value={level}
-                      onChange={(e) => setLevel(e.target.value)}
-                    >
-                      <option value="MS">MS</option>
-                      <option value="PhD">PhD</option>
-                    </select>
-                  </div>
-
-                  <div className="space-y-2 sm:col-span-2">
-                    <label className="font-medium text-neutral-700">
-                      Admit term
-                    </label>
-                    <input
-                      type="text"
-                      placeholder="e.g., Fall 2024"
-                      value={admitTerm}
-                      onChange={(e) => setAdmitTerm(e.target.value)}
-                      className={`w-full p-3.5 border-2 rounded-xl transition-all ${
-                        admitTerm === ""
-                          ? "border-neutral-200 focus:border-blue-500 focus:ring-4 focus:ring-blue-100"
-                          : isAdmitTermValid
-                          ? "border-green-500 focus:border-green-600 focus:ring-4 focus:ring-green-100 bg-green-50/30"
-                          : "border-red-500 focus:border-red-600 focus:ring-4 focus:ring-red-100 bg-red-50/30"
-                      } focus:outline-none`}
-                    />
-                    {admitTerm !== "" && !isAdmitTermValid && (
-                      <p className="text-red-600 mt-1 flex items-center gap-1">
-                        <span className="w-1 h-1 rounded-full bg-red-600"></span>
-                        Admit term is required
-                      </p>
-                    )}
-                  </div>
-
-                  <div className="space-y-2 sm:col-span-2">
-                    <div className="flex items-center justify-between">
-                      <label className="font-medium text-neutral-700">
-                        Background / Focus area
-                      </label>
-                      <div className="text-neutral-500">
-                        {background.trim().length}/120
+            {/* Form content - single column layout */}
+            <div className="space-y-6">
+              {/* ===== BASICS ===== */}
+              {taSubStep === "basics" && (
+                <div className="rounded-2xl border-2 border-neutral-200 bg-gradient-to-br from-white to-neutral-50 p-6 space-y-6 shadow-sm">
+                  <div className="flex items-start justify-between gap-4">
+                    <div>
+                      <div className="font-semibold text-neutral-900 mb-1">
+                        Basic Information
+                      </div>
+                      <div className="text-neutral-600">
+                        Keep it short — you can refine later.
                       </div>
                     </div>
-                    <textarea
-                      placeholder="e.g., Systems, ML, Security... (short)"
-                      value={background}
-                      onChange={(e) => setBackground(e.target.value.slice(0, 120))}
-                      className={`w-full min-h-[100px] p-3.5 border-2 rounded-xl transition-all resize-none ${
-                        background === ""
+                  </div>
+
+                  {/* Grid fields */}
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
+                    <div className="space-y-2">
+                      <label className="font-medium text-neutral-700">
+                        Program
+                      </label>
+                      <input
+                        className="w-full p-3.5 border-2 border-neutral-200 rounded-xl focus:outline-none focus:border-blue-500 focus:ring-4 focus:ring-blue-100 transition-all"
+                        placeholder="e.g., CS"
+                        value={program}
+                        onChange={(e) => setProgram(e.target.value)}
+                      />
+                    </div>
+
+                    <div className="space-y-2">
+                      <label className="font-medium text-neutral-700">
+                        Level
+                      </label>
+                      <select
+                        className="w-full p-3.5 border-2 border-neutral-200 rounded-xl focus:outline-none focus:border-blue-500 focus:ring-4 focus:ring-blue-100 transition-all bg-white"
+                        value={level}
+                        onChange={(e) => setLevel(e.target.value)}
+                      >
+                        <option value="MS">MS</option>
+                        <option value="PhD">PhD</option>
+                      </select>
+                    </div>
+
+                    <div className="space-y-2 sm:col-span-2">
+                      <label className="font-medium text-neutral-700">
+                        Admit term
+                      </label>
+                      <input
+                        type="text"
+                        placeholder="e.g., Fall 2024"
+                        value={admitTerm}
+                        onChange={(e) => setAdmitTerm(e.target.value)}
+                        className={`w-full p-3.5 border-2 rounded-xl transition-all ${
+                          admitTerm === ""
+                            ? "border-neutral-200 focus:border-blue-500 focus:ring-4 focus:ring-blue-100"
+                            : isAdmitTermValid
+                            ? "border-green-500 focus:border-green-600 focus:ring-4 focus:ring-green-100 bg-green-50/30"
+                            : "border-red-500 focus:border-red-600 focus:ring-4 focus:ring-red-100 bg-red-50/30"
+                        } focus:outline-none`}
+                      />
+                      {admitTerm !== "" && !isAdmitTermValid && (
+                        <p className="text-red-600 mt-1 flex items-center gap-1">
+                          <span className="w-1 h-1 rounded-full bg-red-600"></span>
+                          Admit term is required
+                        </p>
+                      )}
+                    </div>
+
+                    <div className="space-y-2 sm:col-span-2">
+                      <div className="flex items-center justify-between">
+                        <label className="font-medium text-neutral-700">
+                          Background / Focus area
+                        </label>
+                        <div className="text-neutral-500">
+                          {background.trim().length}/120
+                        </div>
+                      </div>
+                      <textarea
+                        placeholder="e.g., Systems, ML, Security... (short)"
+                        value={background}
+                        onChange={(e) => setBackground(e.target.value.slice(0, 120))}
+                        className={`w-full min-h-[100px] p-3.5 border-2 rounded-xl transition-all resize-none ${
+                          background === ""
+                            ? "border-neutral-200 focus:border-blue-500 focus:ring-4 focus:ring-blue-100"
+                            : isBackgroundValid
+                            ? "border-green-500 focus:border-green-600 focus:ring-4 focus:ring-green-100 bg-green-50/30"
+                            : "border-red-500 focus:border-red-600 focus:ring-4 focus:ring-red-100 bg-red-50/30"
+                        } focus:outline-none`}
+                      />
+                      {background !== "" && !isBackgroundValid && (
+                        <p className="text-red-600 mt-1 flex items-center gap-1">
+                          <span className="w-1 h-1 rounded-full bg-red-600"></span>
+                          Background is required
+                        </p>
+                      )}
+                    </div>
+
+                    {/* Modern sliders */}
+                    <div className="space-y-3 sm:col-span-2">
+                      <div className="flex items-center justify-between">
+                        <label className="font-medium text-neutral-700">
+                          Standing
+                        </label>
+                        <div className="px-3 py-1 bg-blue-100 text-blue-700 rounded-full font-semibold">
+                          {standing}
+                        </div>
+                      </div>
+                      <Slider
+                        value={[standing]}
+                        min={1}
+                        max={10}
+                        step={1}
+                        onValueChange={(v) => setStanding(v[0])}
+                        className="py-2"
+                      />
+                      <div className="text-neutral-500">
+                        1 = new, 10 = very experienced
+                      </div>
+                    </div>
+
+                    <div className="space-y-3 sm:col-span-2">
+                      <div className="flex items-center justify-between">
+                        <label className="font-medium text-neutral-700">
+                          Max hours / week
+                        </label>
+                        <div className="px-3 py-1 bg-indigo-100 text-indigo-700 rounded-full font-semibold">
+                          {maxHours}
+                        </div>
+                      </div>
+                      <Slider
+                        value={[maxHours]}
+                        min={1}
+                        max={40}
+                        step={1}
+                        onValueChange={(v) => setMaxHours(v[0])}
+                        className="py-2"
+                      />
+                      <div className="text-neutral-500">
+                        Typical range is 10–20
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="flex gap-3 pt-2">
+                    <Button
+                      variant="outline"
+                      className="w-full h-12 rounded-xl border-2"
+                      onClick={() => setStep("account")}
+                    >
+                      Back
+                    </Button>
+                    <Button
+                      className="w-full h-12 rounded-xl bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 shadow-lg shadow-blue-500/30"
+                      onClick={() => setTaSubStep("preferences")}
+                      disabled={!isBackgroundValid || !isAdmitTermValid}
+                    >
+                      Next
+                    </Button>
+                  </div>
+                </div>
+              )}
+
+              {/* ===== PREFERENCES ===== */}
+              {taSubStep === "preferences" && (
+                <div className="rounded-2xl border-2 border-neutral-200 bg-gradient-to-br from-white to-neutral-50 p-6 space-y-6 shadow-sm">
+                  <div>
+                    <div className="font-semibold text-neutral-900 mb-1">
+                      Preferences
+                    </div>
+                    <div className="text-neutral-600">
+                      These help matching quality.
+                    </div>
+                  </div>
+
+                  {/* Skills */}
+                  <div className="space-y-3">
+                    <div className="flex items-center justify-between">
+                      <label className="font-medium text-neutral-700">
+                        Skills
+                      </label>
+                      {!isSkillsValid && skillsText !== "" && (
+                        <div className="text-red-600 font-medium">Required</div>
+                      )}
+                    </div>
+
+                    <input
+                      type="text"
+                      placeholder="Comma-separated: Python, C++, Data Structures..."
+                      value={skillsText}
+                      onChange={(e) => setSkillsText(e.target.value)}
+                      className={`w-full p-3.5 border-2 rounded-xl transition-all ${
+                        skillsText === ""
                           ? "border-neutral-200 focus:border-blue-500 focus:ring-4 focus:ring-blue-100"
-                          : isBackgroundValid
+                          : isSkillsValid
                           ? "border-green-500 focus:border-green-600 focus:ring-4 focus:ring-green-100 bg-green-50/30"
                           : "border-red-500 focus:border-red-600 focus:ring-4 focus:ring-red-100 bg-red-50/30"
                       } focus:outline-none`}
                     />
-                    {background !== "" && !isBackgroundValid && (
-                      <p className="text-red-600 mt-1 flex items-center gap-1">
-                        <span className="w-1 h-1 rounded-full bg-red-600"></span>
-                        Background is required
-                      </p>
+                    {parsedSkills.length > 0 && (
+                      <div className="flex flex-wrap gap-2 p-3 bg-neutral-50 rounded-xl border border-neutral-200">
+                        {parsedSkills.map((s) => (
+                          <Badge
+                            key={s}
+                            variant="outline"
+                            className="bg-white border-blue-200 text-blue-700"
+                          >
+                            {s}
+                          </Badge>
+                        ))}
+                      </div>
                     )}
                   </div>
 
-                  {/* Modern sliders */}
-                  <div className="space-y-3 sm:col-span-2">
+                  {/* Professors multi-select */}
+                  <div className="space-y-3">
                     <div className="flex items-center justify-between">
                       <label className="font-medium text-neutral-700">
-                        Standing
+                        Preferred professors
                       </label>
-                      <div className="px-3 py-1 bg-blue-100 text-blue-700 rounded-full font-semibold">{standing}</div>
+                      {!isProfessorValid && (
+                        <div className="text-red-600 font-medium">
+                          Select at least one
+                        </div>
+                      )}
                     </div>
-                    <Slider
-                      value={[standing]}
-                      min={1}
-                      max={10}
-                      step={1}
-                      onValueChange={(v) => setStanding(v[0])}
-                      className="py-2"
+
+                    <Popover
+                      open={profPopoverOpen}
+                      onOpenChange={setProfPopoverOpen}
+                    >
+                      <PopoverTrigger asChild>
+                        <button
+                          type="button"
+                          className={`w-full rounded-xl border-2 px-4 py-3.5 text-left flex items-center justify-between hover:bg-neutral-50 transition-all ${
+                            selectedProfessorIds.length > 0
+                              ? "border-blue-300 bg-blue-50/30"
+                              : "border-neutral-200"
+                          }`}
+                        >
+                          <span className="text-neutral-700 font-medium">
+                            {selectedProfessorIds.length > 0
+                              ? `${selectedProfessorIds.length} selected`
+                              : "Select professors..."}
+                          </span>
+                          <ChevronsUpDown className="w-4 h-4 text-neutral-500" />
+                        </button>
+                      </PopoverTrigger>
+                      <PopoverContent className="p-0 w-[var(--radix-popover-trigger-width)]">
+                        <Command>
+                          <CommandInput
+                            placeholder="Search professors..."
+                            value={profSearch}
+                            onValueChange={setProfSearch}
+                          />
+                          <CommandEmpty>No professors found.</CommandEmpty>
+                          <CommandGroup>
+                            {filteredProfessors.map((p) => {
+                              const selected = selectedProfessorIds.includes(
+                                p.professor_id
+                              );
+                              return (
+                                <CommandItem
+                                  key={p.professor_id}
+                                  onSelect={() => {
+                                    setSelectedProfessorIds((prev) =>
+                                      selected
+                                        ? prev.filter(
+                                            (id) => id !== p.professor_id
+                                          )
+                                        : [...prev, p.professor_id]
+                                    );
+                                  }}
+                                >
+                                  <Check
+                                    className={`mr-2 h-4 w-4 ${
+                                      selected ? "opacity-100" : "opacity-0"
+                                    }`}
+                                  />
+                                  {p.name}
+                                </CommandItem>
+                              );
+                            })}
+                          </CommandGroup>
+                        </Command>
+                      </PopoverContent>
+                    </Popover>
+
+                    <SelectedBadges
+                      items={selectedProfessors}
+                      onRemove={(id) =>
+                        setSelectedProfessorIds((prev) =>
+                          prev.filter((x) => x !== id)
+                        )
+                      }
                     />
-                    <div className="text-neutral-500">
-                      1 = new, 10 = very experienced
-                    </div>
                   </div>
 
-                  <div className="space-y-3 sm:col-span-2">
-                    <div className="flex items-center justify-between">
-                      <label className="font-medium text-neutral-700">
-                        Max hours / week
-                      </label>
-                      <div className="px-3 py-1 bg-indigo-100 text-indigo-700 rounded-full font-semibold">{maxHours}</div>
-                    </div>
-                    <Slider
-                      value={[maxHours]}
-                      min={1}
-                      max={40}
-                      step={1}
-                      onValueChange={(v) => setMaxHours(v[0])}
-                      className="py-2"
-                    />
-                    <div className="text-neutral-500">
-                      Typical range is 10–20
-                    </div>
+                  <div className="flex gap-3 pt-2">
+                    <Button
+                      variant="outline"
+                      className="w-full h-12 rounded-xl border-2"
+                      onClick={() => setTaSubStep("basics")}
+                    >
+                      Back
+                    </Button>
+                    <Button
+                      onClick={handleTAOnboard}
+                      className="w-full h-12 rounded-xl bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 shadow-lg shadow-blue-500/30 disabled:opacity-50 disabled:cursor-not-allowed"
+                      disabled={!isTAFormValid}
+                    >
+                      Finish TA Onboarding
+                    </Button>
                   </div>
                 </div>
-
-                <div className="flex gap-3 pt-2">
-                  <Button
-                    variant="outline"
-                    className="w-full h-12 rounded-xl border-2"
-                    onClick={() => setStep("account")}
-                  >
-                    Back
-                  </Button>
-                  <Button
-                    className="w-full h-12 rounded-xl bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 shadow-lg shadow-blue-500/30"
-                    onClick={() => setTaSubStep("preferences")}
-                    disabled={!isBackgroundValid || !isAdmitTermValid}
-                  >
-                    Next
-                  </Button>
-                </div>
-              </div>
-            )}
-
-            {/* ===== PREFERENCES ===== */}
-            {taSubStep === "preferences" && (
-              <div className="rounded-2xl border-2 border-neutral-200 bg-gradient-to-br from-white to-neutral-50 p-6 space-y-6 shadow-sm">
-                <div>
-                  <div className="font-semibold text-neutral-900 mb-1">
-                    Preferences
-                  </div>
-                  <div className="text-neutral-600">
-                    These help matching quality.
-                  </div>
-                </div>
-
-                {/* Skills */}
-                <div className="space-y-3">
-                  <div className="flex items-center justify-between">
-                    <label className="font-medium text-neutral-700">
-                      Skills
-                    </label>
-                    {!isSkillsValid && skillsText !== "" && (
-                      <div className="text-red-600 font-medium">Required</div>
-                    )}
-                  </div>
-
-                  <input
-                    type="text"
-                    placeholder="Comma-separated: Python, C++, Data Structures..."
-                    value={skillsText}
-                    onChange={(e) => setSkillsText(e.target.value)}
-                    className={`w-full p-3.5 border-2 rounded-xl transition-all ${
-                      skillsText === ""
-                        ? "border-neutral-200 focus:border-blue-500 focus:ring-4 focus:ring-blue-100"
-                        : isSkillsValid
-                        ? "border-green-500 focus:border-green-600 focus:ring-4 focus:ring-green-100 bg-green-50/30"
-                        : "border-red-500 focus:border-red-600 focus:ring-4 focus:ring-red-100 bg-red-50/30"
-                    } focus:outline-none`}
-                  />
-                  {parsedSkills.length > 0 && (
-                    <div className="flex flex-wrap gap-2 p-3 bg-neutral-50 rounded-xl border border-neutral-200">
-                      {parsedSkills.map((s) => (
-                        <Badge key={s} variant="outline" className="bg-white border-blue-200 text-blue-700">
-                          {s}
-                        </Badge>
-                      ))}
-                    </div>
-                  )}
-                </div>
-
-                {/* Professors multi-select */}
-                <div className="space-y-3">
-                  <div className="flex items-center justify-between">
-                    <label className="font-medium text-neutral-700">
-                      Preferred professors
-                    </label>
-                    {!isProfessorValid && (
-                      <div className="text-red-600 font-medium">Select at least one</div>
-                    )}
-                  </div>
-
-                  <Popover open={profPopoverOpen} onOpenChange={setProfPopoverOpen}>
-                    <PopoverTrigger asChild>
-                      <button
-                        type="button"
-                        className={`w-full rounded-xl border-2 px-4 py-3.5 text-left flex items-center justify-between hover:bg-neutral-50 transition-all ${
-                          selectedProfessorIds.length > 0
-                            ? "border-blue-300 bg-blue-50/30"
-                            : "border-neutral-200"
-                        }`}
-                      >
-                        <span className="text-neutral-700 font-medium">
-                          {selectedProfessorIds.length > 0
-                            ? `${selectedProfessorIds.length} selected`
-                            : "Select professors..."}
-                        </span>
-                        <ChevronsUpDown className="w-4 h-4 text-neutral-500" />
-                      </button>
-                    </PopoverTrigger>
-                    <PopoverContent className="p-0 w-[var(--radix-popover-trigger-width)]">
-                      <Command>
-                        <CommandInput
-                          placeholder="Search professors..."
-                          value={profSearch}
-                          onValueChange={setProfSearch}
-                        />
-                        <CommandEmpty>No professors found.</CommandEmpty>
-                        <CommandGroup>
-                          {filteredProfessors.map((p) => {
-                            const selected = selectedProfessorIds.includes(
-                              p.professor_id
-                            );
-                            return (
-                              <CommandItem
-                                key={p.professor_id}
-                                onSelect={() => {
-                                  setSelectedProfessorIds((prev) =>
-                                    selected
-                                      ? prev.filter((id) => id !== p.professor_id)
-                                      : [...prev, p.professor_id]
-                                  );
-                                }}
-                              >
-                                <Check
-                                  className={`mr-2 h-4 w-4 ${
-                                    selected ? "opacity-100" : "opacity-0"
-                                  }`}
-                                />
-                                {p.name}
-                              </CommandItem>
-                            );
-                          })}
-                        </CommandGroup>
-                      </Command>
-                    </PopoverContent>
-                  </Popover>
-
-                  <SelectedBadges
-                    items={selectedProfessors}
-                    onRemove={(id) =>
-                      setSelectedProfessorIds((prev) => prev.filter((x) => x !== id))
-                    }
-                  />
-                </div>
-
-                <div className="flex gap-3 pt-2">
-                  <Button
-                    variant="outline"
-                    className="w-full h-12 rounded-xl border-2"
-                    onClick={() => setTaSubStep("basics")}
-                  >
-                    Back
-                  </Button>
-                  <Button
-                    onClick={handleTAOnboard}
-                    className="w-full h-12 rounded-xl bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 shadow-lg shadow-blue-500/30 disabled:opacity-50 disabled:cursor-not-allowed"
-                    disabled={!isTAFormValid}
-                  >
-                    Finish TA Onboarding
-                  </Button>
-                </div>
-              </div>
-            )}
+              )}
+            </div>
           </div>
-        </div>
-      )}
-        
+        )}
+
         {/* FACULTY */}
         {step === "faculty" && (
           <div className="space-y-6">

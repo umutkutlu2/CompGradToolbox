@@ -3,8 +3,10 @@ from app.services.faculty_onboarding_service import onboard_faculty
 
 def complete_onboarding(user_id: int, role: str, data):
     if role == "student":
-        return onboard_ta(user_id, data)
+        return onboard_ta(data)
+
     elif role == "faculty":
-        return onboard_faculty(user_id, data)
+        return onboard_faculty(data)
+
     else:
         raise ValueError("Unsupported role for onboarding")

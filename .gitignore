@@ -8,6 +8,7 @@ __pycache__/
 *.so
 *.egg-info/
 .eggs/
+.gitignore
 
 # Virtual environments
 .venv/
