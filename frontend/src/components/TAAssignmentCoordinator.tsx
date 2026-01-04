@@ -42,7 +42,10 @@ interface TAAssignmentCoordinatorProps {
   onNavigate: (page: string) => void;
 }
 
-export default function TAAssignmentCoordinator({ name, onNavigate }: TAAssignmentCoordinatorProps) {
+export default function TAAssignmentCoordinator({
+  name,
+  onNavigate,
+}: TAAssignmentCoordinatorProps) {
   const [skillWeight, setSkillWeight] = useState([70]);
   const [facultyPrefWeight, setFacultyPrefWeight] = useState([60]);
   const [taPrefWeight, setTaPrefWeight] = useState([50]);
@@ -76,7 +79,7 @@ export default function TAAssignmentCoordinator({ name, onNavigate }: TAAssignme
   useEffect(() => {
     const fetchWeights = async () => {
       try {
-        const res = await fetch('/api/weights');
+        const res = await fetch("/api/weights");
         const data = await res.json();
         setSkillWeight([Math.round(data.course_pref * 100)]);
         setFacultyPrefWeight([Math.round(data.prof_pref * 100)]);
@@ -118,9 +121,9 @@ export default function TAAssignmentCoordinator({ name, onNavigate }: TAAssignme
         course_pref: skillWeight[0] / 100,
         workload_balance: workloadWeight[0] / 100,
       };
-      await fetch('/api/weights', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+      await fetch("/api/weights", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),
       });
     } catch (err) {
@@ -137,6 +140,9 @@ export default function TAAssignmentCoordinator({ name, onNavigate }: TAAssignme
     try {
       const payload = {
         course_code: selectedCourse.code,
+        remove_tas: tasToRemove,
+        add_tas: tasToAdd,
+        user: name,
         remove_tas: tasToRemove,
         add_tas: tasToAdd,
         user: name,
@@ -225,6 +231,7 @@ export default function TAAssignmentCoordinator({ name, onNavigate }: TAAssignme
     setTasToAdd([]);
     setDetailsOpen(true);
   };
+  };
 
   const toggleRemoveTA = (taName: string) => {
     setTasToRemove((prev) =>
@@ -232,6 +239,11 @@ export default function TAAssignmentCoordinator({ name, onNavigate }: TAAssignme
     );
   };
 
+  const toggleAddTA = (taName: string) => {
+    setTasToAdd((prev) =>
+      prev.includes(taName) ? prev.filter((t) => t !== taName) : [...prev, taName]
+    );
+  };
   const toggleAddTA = (taName: string) => {
     setTasToAdd((prev) =>
       prev.includes(taName) ? prev.filter((t) => t !== taName) : [...prev, taName]
@@ -259,7 +271,15 @@ export default function TAAssignmentCoordinator({ name, onNavigate }: TAAssignme
                 <Label>Skill Match</Label>
                 <span>{skillWeight[0]}%</span>
               </div>
-              <Slider value={skillWeight} onValueChange={(v: number[]) => { setSkillWeight(v); saveWeights(); }} max={100} step={5} />
+              <Slider
+                value={skillWeight}
+                onValueChange={(v: number[]) => {
+                  setSkillWeight(v);
+                  saveWeights();
+                }}
+                max={100}
+                step={5}
+              />
             </div>
             
             <div className="space-y-2">
@@ -267,7 +287,15 @@ export default function TAAssignmentCoordinator({ name, onNavigate }: TAAssignme
                 <Label>Faculty Preference</Label>
                 <span>{facultyPrefWeight[0]}%</span>
               </div>
-              <Slider value={facultyPrefWeight} onValueChange={(v: number[]) => { setFacultyPrefWeight(v); saveWeights(); }} max={100} step={5} />
+              <Slider
+                value={facultyPrefWeight}
+                onValueChange={(v: number[]) => {
+                  setFacultyPrefWeight(v);
+                  saveWeights();
+                }}
+                max={100}
+                step={5}
+              />
             </div>
             
             <div className="space-y-2">
@@ -275,7 +303,15 @@ export default function TAAssignmentCoordinator({ name, onNavigate }: TAAssignme
                 <Label>TA Preference</Label>
                 <span>{taPrefWeight[0]}%</span>
               </div>
-              <Slider value={taPrefWeight} onValueChange={(v: number[]) => { setTaPrefWeight(v); saveWeights(); }} max={100} step={5} />
+              <Slider
+                value={taPrefWeight}
+                onValueChange={(v: number[]) => {
+                  setTaPrefWeight(v);
+                  saveWeights();
+                }}
+                max={100}
+                step={5}
+              />
             </div>
             
             <div className="space-y-2">
@@ -283,7 +319,15 @@ export default function TAAssignmentCoordinator({ name, onNavigate }: TAAssignme
                 <Label>Fair Workload Distribution</Label>
                 <span>{workloadWeight[0]}%</span>
               </div>
-              <Slider value={workloadWeight} onValueChange={(v: number[]) => { setWorkloadWeight(v); saveWeights(); }} max={100} step={5} />
+              <Slider
+                value={workloadWeight}
+                onValueChange={(v: number[]) => {
+                  setWorkloadWeight(v);
+                  saveWeights();
+                }}
+                max={100}
+                step={5}
+              />
             </div>
           </div>
           
@@ -298,7 +342,12 @@ export default function TAAssignmentCoordinator({ name, onNavigate }: TAAssignme
           </div>
           
           <div className="mt-6 flex gap-3">
-            <Button size="lg" className="gap-2" onClick={runAssignment} disabled={loading}>
+            <Button
+              size="lg"
+              className="gap-2"
+              onClick={runAssignment}
+              disabled={loading}
+            >
               <Play className="w-4 h-4" />
               {loading ? "Running..." : "Run Assignment"}
             </Button>
@@ -307,7 +356,12 @@ export default function TAAssignmentCoordinator({ name, onNavigate }: TAAssignme
               variant="outline"
               size="lg"
               className="gap-2"
-              onClick={() => window.open("http://127.0.0.1:8000/api/export-assignments-xlsx", "_blank")}
+              onClick={() =>
+                window.open(
+                  "http://127.0.0.1:8000/api/export-assignments-xlsx",
+                  "_blank"
+                )
+              }
               disabled={!result}
             >
               <Download className="w-4 h-4" />
@@ -325,7 +379,9 @@ export default function TAAssignmentCoordinator({ name, onNavigate }: TAAssignme
         
         <CardContent>
           {!result && (
-            <p className="text-neutral-500 text-sm">Run assignment to see results.</p>
+            <p className="text-neutral-500 text-sm">
+              Run assignment to see results.
+            </p>
           )}
           
           {result && (
@@ -351,7 +407,9 @@ export default function TAAssignmentCoordinator({ name, onNavigate }: TAAssignme
                         <tr key={course.code} className="border-b hover:bg-neutral-50">
                           <td className="py-4 px-4">
                             <div className="font-medium">{course.code}</div>
-                            <div className="text-xs text-neutral-500">{course.name}</div>
+                            <div className="text-xs text-neutral-500">
+                              {course.name}
+                            </div>
                           </td>
                           
                           {/* ✅ Professors as multiple badges */}
@@ -377,12 +435,20 @@ export default function TAAssignmentCoordinator({ name, onNavigate }: TAAssignme
                           <td className="py-4 px-4">
                             <div className="flex flex-wrap gap-1">
                               {course.tas.map((ta: string, i: number) => (
-                                <Badge key={i} variant="outline">{ta}</Badge>
+                                <Badge key={i} variant="outline">
+                                  {ta}
+                                </Badge>
                               ))}
                             </div>
                           </td>
                           
                           <td className="py-4 px-4 ">
+                            <Button
+                              className="border rounded bg-amber-100 border-amber-200"
+                              size="sm"
+                              variant="ghost"
+                              onClick={() => handleViewDetails(course)}
+                            >
                             <Button
                               className="border rounded bg-amber-100 border-amber-200"
                               size="sm"
@@ -420,13 +486,17 @@ export default function TAAssignmentCoordinator({ name, onNavigate }: TAAssignme
                           <td className="py-4 px-4">
                             <div className="flex flex-wrap gap-1">
                               {ta.courses.map((course, i) => (
-                                <Badge key={i} variant="outline">{course}</Badge>
+                                <Badge key={i} variant="outline">
+                                  {course}
+                                </Badge>
                               ))}
                             </div>
                           </td>
                           
                           <td className="py-4 px-4">
-                            <div>{ta.load} hrs / {ta.maxLoad} hrs</div>
+                            <div>
+                              {ta.load} hrs / {ta.maxLoad} hrs
+                            </div>
                           </td>
                           
                           <td className="py-4 px-4">
@@ -434,7 +504,9 @@ export default function TAAssignmentCoordinator({ name, onNavigate }: TAAssignme
                               <div className="w-32 bg-neutral-200 h-2 rounded-full">
                                 <div
                                   className="bg-blue-600 h-2 rounded-full"
-                                  style={{ width: `${(ta.load / ta.maxLoad) * 100}%` }}
+                                  style={{
+                                    width: `${(ta.load / ta.maxLoad) * 100}%`,
+                                  }}
                                 />
                               </div>
                               <span className="text-xs text-neutral-600">

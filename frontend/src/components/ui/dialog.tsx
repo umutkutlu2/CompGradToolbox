@@ -53,7 +53,7 @@ export function DialogContent({
     <DialogPortal>
       <DialogOverlay />
 
-      <div className="fixed inset-0 z-50 flex items-center justify-center">
+      <div className="fixed inset-0 z-50 flex items-start justify-center p-4 overflow-y-auto sm:items-center">
         <DialogPrimitive.Content
           className={cn(
             "relative w-full max-w-lg rounded-lg border bg-background p-6 shadow-lg",
@@ -71,6 +71,7 @@ export function DialogContent({
     </DialogPortal>
   );
 }
+
 
 
 
