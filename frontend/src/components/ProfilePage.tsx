@@ -3,7 +3,6 @@ import { X, Save } from "lucide-react";
 import { Card, CardHeader, CardTitle, CardContent } from "./ui/card";
 import { Button } from "./ui/button";
 import { Input } from "./ui/input";
-import { Badge } from "./ui/badge";
 import { Label } from "./ui/label";
 import {
   Select,
@@ -38,6 +37,14 @@ type ProfessorProfile = {
   preferred_tas: TAMini[];
 };
 
+type UserRow = {
+  user_id: number;
+  username: string;
+  user_type: UserRole;
+  ta_id: number | null;
+  professor_id: number | null;
+};
+
 export default function ProfilePage({
   userRole,
   userId,
@@ -45,7 +52,7 @@ export default function ProfilePage({
   onNameUpdated,
 }: {
   userRole: UserRole;
-  userId: number | null;
+  userId: number | null; // this is user.user_id
   username: string;
   onNameUpdated: (n: string) => void;
 }) {
@@ -60,6 +67,10 @@ export default function ProfilePage({
   const [allProfessors, setAllProfessors] = useState<ProfessorMini[]>([]);
   const [allTAs, setAllTAs] = useState<TAMini[]>([]);
 
+  // IMPORTANT: map user_id -> ta_id / professor_id and keep them for saves
+  const [taId, setTaId] = useState<number | null>(null);
+  const [professorId, setProfessorId] = useState<number | null>(null);
+
   // student state
   const [taName, setTaName] = useState("");
   const [maxHours, setMaxHours] = useState<number>(20);
@@ -70,9 +81,11 @@ export default function ProfilePage({
   // faculty state
   const [profName, setProfName] = useState("");
   const [preferredTaIds, setPreferredTaIds] = useState<number[]>([]);
-  const [taToAdd, setTaToAdd] = useState<string>("");
 
-  const canRender = useMemo(() => userId !== null && (isStudent || isFaculty), [userId, isStudent, isFaculty]);
+  const canRender = useMemo(
+    () => userId !== null && (isStudent || isFaculty),
+    [userId, isStudent, isFaculty]
+  );
 
   useEffect(() => {
     if (!canRender) return;
@@ -80,14 +93,16 @@ export default function ProfilePage({
     const load = async () => {
       setLoading(true);
       try {
+        // 1) Load picklists in parallel
         const [skillsRes, coursesRes, profsRes, tasRes] = await Promise.all([
           fetch(`${API}/api/skills`),
           fetch(`${API}/courses`),
-          fetch(`${API}/api/professors`), // if your list endpoint differs, adjust
+          fetch(`${API}/api/professors`),
           fetch(`${API}/api/tas`),
         ]);
 
         if (skillsRes.ok) setAllSkills(await skillsRes.json());
+
         if (coursesRes.ok) {
           const c = await coursesRes.json();
           setAllCourses(
@@ -97,6 +112,7 @@ export default function ProfilePage({
             }))
           );
         }
+
         if (profsRes.ok) {
           const p = await profsRes.json();
           setAllProfessors(
@@ -106,6 +122,7 @@ export default function ProfilePage({
             }))
           );
         }
+
         if (tasRes.ok) {
           const t = await tasRes.json();
           setAllTAs(
@@ -116,25 +133,38 @@ export default function ProfilePage({
           );
         }
 
+        // 2) Fetch user row FIRST (user_id -> ta_id/professor_id)
+        const userRes = await fetch(`${API}/api/users/${userId}`);
+        if (!userRes.ok) throw new Error("Failed to load user record");
+        const user: UserRow = await userRes.json();
+
+        setTaId(user.ta_id ?? null);
+        setProfessorId(user.professor_id ?? null);
+
+        // 3) Then fetch the correct profile by ta_id / professor_id
         if (isStudent) {
-          const res = await fetch(`${API}/api/tas/${userId}`);
+          if (!user.ta_id) throw new Error("This user has no ta_id");
+          const res = await fetch(`${API}/api/tas/${user.ta_id}`);
           if (!res.ok) throw new Error("Failed to load TA profile");
           const data: TAProfile = await res.json();
 
           setTaName(data.name ?? "");
           setMaxHours(data.max_hours ?? 20);
           setSkills(data.skills ?? []);
-          setPreferredProfessorIds((data.preferred_professors ?? []).map(p => p.professor_id));
+          setPreferredProfessorIds(
+            (data.preferred_professors ?? []).map((p) => p.professor_id)
+          );
           setCoursePrefs(data.course_interests ?? {});
         }
 
         if (isFaculty) {
-          const res = await fetch(`${API}/api/professors/${userId}`);
+          if (!user.professor_id) throw new Error("This user has no professor_id");
+          const res = await fetch(`${API}/api/professors/${user.professor_id}`);
           if (!res.ok) throw new Error("Failed to load professor profile");
           const data: ProfessorProfile = await res.json();
 
           setProfName(data.name ?? "");
-          setPreferredTaIds((data.preferred_tas ?? []).map(t => t.ta_id));
+          setPreferredTaIds((data.preferred_tas ?? []).map((t) => t.ta_id));
         }
       } finally {
         setLoading(false);
@@ -145,12 +175,14 @@ export default function ProfilePage({
   }, [canRender, isStudent, isFaculty, userId]);
 
   const addUnique = <T,>(arr: T[], v: T) => (arr.includes(v) ? arr : [...arr, v]);
-  const removeItem = <T,>(arr: T[], v: T) => arr.filter(x => x !== v);
+  const removeItem = <T,>(arr: T[], v: T) => arr.filter((x) => x !== v);
 
   const saveStudent = async () => {
-    if (userId == null) return;
+    if (taId == null) {
+      alert("Cannot save: missing TA id for this user.");
+      return;
+    }
 
-    // Build course_interests payload (include current ones; removals handled by deleting key or sending null)
     const payload = {
       name: taName,
       max_hours: maxHours,
@@ -159,7 +191,7 @@ export default function ProfilePage({
       preferred_professor_ids: preferredProfessorIds,
     };
 
-    const res = await fetch(`${API}/api/tas/${userId}`, {
+    const res = await fetch(`${API}/api/tas/${taId}`, {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(payload),
@@ -170,19 +202,23 @@ export default function ProfilePage({
       return;
     }
 
+    // Only update "display name" outside this page on explicit save
     onNameUpdated(taName);
     alert("Saved!");
   };
 
   const saveFaculty = async () => {
-    if (userId == null) return;
+    if (professorId == null) {
+      alert("Cannot save: missing professor id for this user.");
+      return;
+    }
 
     const payload = {
       name: profName,
       preferred_ta_ids: preferredTaIds,
     };
 
-    const res = await fetch(`${API}/api/professors/${userId}`, {
+    const res = await fetch(`${API}/api/professors/${professorId}`, {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(payload),
@@ -214,9 +250,6 @@ export default function ProfilePage({
     return <div className="text-sm text-neutral-600">Loading profile…</div>;
   }
 
-console.log(coursePrefs);
-
-
   return (
     <div className="space-y-6">
       {/* BASIC INFO */}
@@ -225,273 +258,261 @@ console.log(coursePrefs);
           <CardTitle>{isStudent ? "Student (TA) Profile" : "Faculty Profile"}</CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
-            <div className="grid md:grid-cols-2 gap-4">
+          <div className="grid md:grid-cols-2 gap-4">
             {/* Name */}
             <div className="rounded-xl bg-white p-4 shadow-sm">
-                <div className="space-y-2">
+              <div className="space-y-2">
                 <Label className="text-sm text-neutral-700">Name</Label>
                 <Input
-                    value={isStudent ? taName : profName}
-                    onChange={(e) => (isStudent ? setTaName(e.target.value) : setProfName(e.target.value))}
-                    className="border-neutral-200 focus-visible:ring-1 focus-visible:ring-neutral-300"
+                  value={isStudent ? taName : profName}
+                  onChange={(e) =>
+                    isStudent ? setTaName(e.target.value) : setProfName(e.target.value)
+                  }
+                  className="border-neutral-200 focus-visible:ring-1 focus-visible:ring-neutral-300"
                 />
-                </div>
+              </div>
             </div>
 
             {/* Username */}
             <div className="rounded-xl bg-white p-4 shadow-sm">
-                <div className="space-y-2">
+              <div className="space-y-2">
                 <Label className="text-sm text-neutral-700">Username</Label>
                 <Input
-                    value={username}
-                    disabled
-                    className="border-neutral-200 bg-neutral-50 text-neutral-600"
+                  value={username}
+                  disabled
+                  className="border-neutral-200 bg-neutral-50 text-neutral-600"
                 />
-                </div>
+              </div>
             </div>
 
             {/* Max Hours (student only) */}
             {isStudent && (
-                <div className="rounded-xl bg-white p-4 shadow-sm md:col-span-2">
+              <div className="rounded-xl bg-white p-4 shadow-sm md:col-span-2">
                 <div className="space-y-2">
-                    <Label className="text-sm text-neutral-700">Max Hours</Label>
-                    <Input
+                  <Label className="text-sm text-neutral-700">Max Hours</Label>
+                  <Input
                     type="number"
                     value={maxHours}
                     onChange={(e) => setMaxHours(parseInt(e.target.value || "0", 10))}
                     className="border-neutral-200 focus-visible:ring-1 focus-visible:ring-neutral-300"
-                    />
+                  />
                 </div>
-                </div>
+              </div>
             )}
-            </div>
+          </div>
         </CardContent>
       </Card>
 
       {/* STUDENT ONLY */}
       {isStudent && (
         <>
-        {/* Skills (modern pills + search + browse all) */}
-        <Card>
-        <CardHeader>
-            <CardTitle>Skills</CardTitle>
-        </CardHeader>
+          {/* Skills */}
+          <Card>
+            <CardHeader>
+              <CardTitle>Skills</CardTitle>
+            </CardHeader>
 
-        <CardContent className="space-y-4">
-            {/* Selected skill pills */}
-            <div className="flex flex-wrap gap-2">
-            {skills.map((s) => (
-                <span
-                key={s}
-                className="inline-flex items-center bg-blue-50 text-blue-900 gap-1 rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1 text-sm text-emerald-900 shadow-sm"
-                >
-                <span className="max-w-[220px] truncate">{s}</span>
-                <button
-                    type="button"
-                    onClick={() => setSkills(removeItem(skills, s))}
-                    className="ml-1 inline-flex h-5 w-5 items-center justify-center rounded-full hover:bg-emerald-100"
-                    aria-label={`Remove ${s}`}
-                    title="Remove"
-                >
-                    <X className="h-3.5 w-3.5" />
-                </button>
-                </span>
-            ))}
+            <CardContent className="space-y-4">
+              {/* Selected skill pills */}
+              <div className="flex flex-wrap gap-2">
+                {skills.map((s) => (
+                  <span
+                    key={s}
+                    className="inline-flex items-center bg-blue-50 text-blue-900 gap-1 rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1 text-sm text-emerald-900 shadow-sm"
+                  >
+                    <span className="max-w-[220px] truncate">{s}</span>
+                    <button
+                      type="button"
+                      onClick={() => setSkills(removeItem(skills, s))}
+                      className="ml-1 inline-flex h-5 w-5 items-center justify-center rounded-full hover:bg-emerald-100"
+                      aria-label={`Remove ${s}`}
+                      title="Remove"
+                    >
+                      <X className="h-3.5 w-3.5" />
+                    </button>
+                  </span>
+                ))}
 
-            {skills.length === 0 && (
-                <div className="text-sm text-neutral-500">No skills added yet.</div>
-            )}
-            </div>
+                {skills.length === 0 && (
+                  <div className="text-sm text-neutral-500">No skills added yet.</div>
+                )}
+              </div>
 
-            <SkillPickerWithBrowse
-            allSkills={allSkills}
-            selected={skills}
-            onAdd={(skill) => setSkills(addUnique(skills, skill))}
-            />
-        </CardContent>
-        </Card>
+              <SkillPickerWithBrowse
+                allSkills={allSkills}
+                selected={skills}
+                onAdd={(skill) => setSkills(addUnique(skills, skill))}
+              />
+            </CardContent>
+          </Card>
 
+          {/* Preferred Courses */}
+          <Card>
+            <CardHeader>
+              <CardTitle>Preferred Courses</CardTitle>
+            </CardHeader>
 
-        {/* Preferred Courses (modern pills + search + browse all) */}
-        <Card>
-        <CardHeader>
-            <CardTitle>Preferred Courses</CardTitle>
-        </CardHeader>
-
-        <CardContent className="space-y-4">
-            {/* Selected course pills */}
-            <div className="flex flex-wrap gap-2">
-            {Object.entries(coursePrefs).map(([courseCode, interest]) => (
-                <span
+            <CardContent className="space-y-4">
+              {/* Selected course pills */}
+              <div className="flex flex-wrap gap-2">
+                {Object.entries(coursePrefs).map(([courseCode, interest]) => (
+                  <span
                     key={courseCode}
                     className={`inline-flex items-center gap-2 rounded-full border px-3 py-1 text-sm shadow-sm ${pillClassForInterest(
-                    interest
+                      interest
                     )}`}
-                >
+                  >
                     <span className="max-w-[140px] truncate font-medium">{courseCode}</span>
 
                     <Select
-                    value={interest}
-                    onValueChange={(v) =>
+                      value={interest}
+                      onValueChange={(v) =>
                         setCoursePrefs({ ...coursePrefs, [courseCode]: v as InterestLevel })
-                    }
+                      }
                     >
-                    <SelectTrigger className="h-7 w-[120px] rounded-full bg-white">
+                      <SelectTrigger className="h-7 w-[120px] rounded-full bg-white">
                         <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
+                      </SelectTrigger>
+                      <SelectContent>
                         <SelectItem value="High">High</SelectItem>
                         <SelectItem value="Medium">Medium</SelectItem>
                         <SelectItem value="Low">Low</SelectItem>
-                    </SelectContent>
+                      </SelectContent>
                     </Select>
 
                     <button
-                    type="button"
-                    onClick={() => {
+                      type="button"
+                      onClick={() => {
                         const next = { ...coursePrefs };
                         delete next[courseCode];
                         setCoursePrefs(next);
-                    }}
-                    className="ml-1 inline-flex h-5 w-5 items-center justify-center rounded-full hover:bg-black/5"
-                    title="Remove"
+                      }}
+                      className="ml-1 inline-flex h-5 w-5 items-center justify-center rounded-full hover:bg-black/5"
+                      title="Remove"
                     >
-                    <X className="h-3.5 w-3.5" />
+                      <X className="h-3.5 w-3.5" />
                     </button>
-                </span>
+                  </span>
                 ))}
 
+                {Object.entries(coursePrefs).length === 0 && (
+                  <div className="text-sm text-neutral-500">No course preferences yet.</div>
+                )}
+              </div>
 
+              <CoursePickerWithBrowse
+                allCourses={allCourses}
+                selectedCourseCodes={Object.keys(coursePrefs)}
+                onAdd={(courseCode) => setCoursePrefs({ ...coursePrefs, [courseCode]: "Medium" })}
+              />
+            </CardContent>
+          </Card>
 
-            {Object.entries(coursePrefs).length === 0 && (
-                <div className="text-sm text-neutral-500">No course preferences yet.</div>
-            )}
-            </div>
+          {/* Preferred Professors */}
+          <Card>
+            <CardHeader>
+              <CardTitle>Preferred Professors</CardTitle>
+            </CardHeader>
 
+            <CardContent className="space-y-4">
+              {/* Selected pills */}
+              <div className="flex flex-wrap gap-2">
+                {preferredProfessorIds.map((pid) => {
+                  const p = allProfessors.find((x) => x.professor_id === pid);
+                  const label = p ? p.name : `Professor #${pid}`;
 
-            <CoursePickerWithBrowse
-            allCourses={allCourses}
-            selectedCourseCodes={Object.keys(coursePrefs)}
-            onAdd={(courseCode) =>
-                setCoursePrefs({ ...coursePrefs, [courseCode]: "Medium" })
-            }
-            />
-        </CardContent>
-        </Card>
-
-
-        {/* Preferred Professors (modern pills + search + browse all) */}
-        <Card>
-        <CardHeader>
-            <CardTitle>Preferred Professors</CardTitle>
-        </CardHeader>
-
-        
-
-        <CardContent className="space-y-4">
-            {/* Selected pills */}
-            <div className="flex flex-wrap gap-2">
-            {preferredProfessorIds.map((pid) => {
-                const p = allProfessors.find((x) => x.professor_id === pid);
-                const label = p ? p.name : `Professor #${pid}`;
-
-                return (
-                <span
-                    key={pid}
-                    className="inline-flex items-center gap-1 rounded-full border border-blue-200 bg-blue-50 px-3 py-1 text-sm text-blue-900 shadow-sm"
-                >
-                    <span className="max-w-[220px] truncate">{label}</span>
-                    <button
-                    type="button"
-                    onClick={() => setPreferredProfessorIds(removeItem(preferredProfessorIds, pid))}
-                    className="ml-1 inline-flex h-5 w-5 items-center justify-center rounded-full hover:bg-blue-100"
-                    aria-label={`Remove ${label}`}
-                    title="Remove"
+                  return (
+                    <span
+                      key={pid}
+                      className="inline-flex items-center gap-1 rounded-full border border-blue-200 bg-blue-50 px-3 py-1 text-sm text-blue-900 shadow-sm"
                     >
-                    <X className="h-3.5 w-3.5" />
-                    </button>
-                </span>
-                );
-            })}
+                      <span className="max-w-[220px] truncate">{label}</span>
+                      <button
+                        type="button"
+                        onClick={() =>
+                          setPreferredProfessorIds(removeItem(preferredProfessorIds, pid))
+                        }
+                        className="ml-1 inline-flex h-5 w-5 items-center justify-center rounded-full hover:bg-blue-100"
+                        aria-label={`Remove ${label}`}
+                        title="Remove"
+                      >
+                        <X className="h-3.5 w-3.5" />
+                      </button>
+                    </span>
+                  );
+                })}
 
-            {preferredProfessorIds.length === 0 && (
-                <div className="text-sm text-neutral-500">No preferred professors selected.</div>
-            )}
-            </div>
+                {preferredProfessorIds.length === 0 && (
+                  <div className="text-sm text-neutral-500">No preferred professors selected.</div>
+                )}
+              </div>
 
-            <ProfessorPickerWithBrowse
-            allProfessors={allProfessors}
-            selectedIds={preferredProfessorIds}
-            onAdd={(pid) => setPreferredProfessorIds(addUnique(preferredProfessorIds, pid))}
-            />
-        </CardContent>
-        </Card>
-
-
+              <ProfessorPickerWithBrowse
+                allProfessors={allProfessors}
+                selectedIds={preferredProfessorIds}
+                onAdd={(pid) => setPreferredProfessorIds(addUnique(preferredProfessorIds, pid))}
+              />
+            </CardContent>
+          </Card>
         </>
       )}
 
       {/* FACULTY ONLY */}
-        {isFaculty && (
+      {isFaculty && (
         <Card>
-            <CardHeader>
+          <CardHeader>
             <CardTitle>Preferred TAs</CardTitle>
-            </CardHeader>
+          </CardHeader>
 
-            <CardContent className="space-y-4">
+          <CardContent className="space-y-4">
             {/* Selected TA pills */}
             <div className="flex flex-wrap gap-2">
-                {preferredTaIds.map((tid) => {
+              {preferredTaIds.map((tid) => {
                 const t = allTAs.find((x) => x.ta_id === tid);
                 const label = t ? t.name : `TA #${tid}`;
 
                 return (
-                    <span
+                  <span
                     key={tid}
                     className="inline-flex items-center gap-1 rounded-full border border-purple-200 bg-purple-100 px-3 py-1 text-sm text-purple-700 shadow-sm"
-                    >
+                  >
                     <span className="max-w-[220px] truncate">{label}</span>
                     <button
-                        type="button"
-                        onClick={() => setPreferredTaIds(removeItem(preferredTaIds, tid))}
-                        className="ml-1 inline-flex h-5 w-5 items-center justify-center rounded-full hover:bg-purple-200/60"
-                        aria-label={`Remove ${label}`}
-                        title="Remove"
+                      type="button"
+                      onClick={() => setPreferredTaIds(removeItem(preferredTaIds, tid))}
+                      className="ml-1 inline-flex h-5 w-5 items-center justify-center rounded-full hover:bg-purple-200/60"
+                      aria-label={`Remove ${label}`}
+                      title="Remove"
                     >
-                        <X className="h-3.5 w-3.5" />
+                      <X className="h-3.5 w-3.5" />
                     </button>
-                    </span>
+                  </span>
                 );
-                })}
+              })}
 
-                {preferredTaIds.length === 0 && (
+              {preferredTaIds.length === 0 && (
                 <div className="text-sm text-neutral-500">No preferred TAs selected.</div>
-                )}
+              )}
             </div>
 
             <TAPickerWithBrowse
-                allTAs={allTAs}
-                selectedIds={preferredTaIds}
-                onAdd={(tid) => setPreferredTaIds(addUnique(preferredTaIds, tid))}
+              allTAs={allTAs}
+              selectedIds={preferredTaIds}
+              onAdd={(tid) => setPreferredTaIds(addUnique(preferredTaIds, tid))}
             />
-            </CardContent>
+          </CardContent>
         </Card>
-        )}
+      )}
 
-
-          <div className="pt-2">
-            <Button onClick={isStudent ? saveStudent : saveFaculty} className="gap-2">
-              <Save className="w-4 h-4" />
-              Save Profile
-            </Button>
-          </div>
-      
+      <div className="pt-2">
+        <Button onClick={isStudent ? saveStudent : saveFaculty} className="gap-2">
+          <Save className="w-4 h-4" />
+          Save Profile
+        </Button>
+      </div>
     </div>
   );
-
 }
-
-
 
 function ProfessorPickerWithBrowse({
   allProfessors,
@@ -516,7 +537,6 @@ function ProfessorPickerWithBrowse({
 
   return (
     <div className="space-y-3">
-      {/* Search */}
       <div className="space-y-2">
         <Input
           value={q}
@@ -524,28 +544,19 @@ function ProfessorPickerWithBrowse({
           onChange={(e) => setQ(e.target.value)}
         />
 
-        <div className="text-xs text-neutral-500">
-          Click a professor pill below to add.
-        </div>
+        <div className="text-xs text-neutral-500">Click a professor pill below to add.</div>
       </div>
 
-      {/* Browse / filtered list as pill grid */}
       <div className="rounded-xl border bg-neutral-50 p-3">
         <div className="mb-2 flex items-center justify-between">
-          <div className="text-sm font-medium text-neutral-800">
-            {q.trim() ? "Matches" : "All Professors"}
-          </div>
-          <div className="text-xs text-neutral-500">
-            {filtered.length} available
-          </div>
+          <div className="text-sm font-medium text-neutral-800">{q.trim() ? "Matches" : "All Professors"}</div>
+          <div className="text-xs text-neutral-500">{filtered.length} available</div>
         </div>
 
         {filtered.length === 0 ? (
-          <div className="text-sm text-neutral-500 py-4 text-center">
-            No matches found.
-          </div>
+          <div className="text-sm text-neutral-500 py-4 text-center">No matches found.</div>
         ) : (
-        <div className="max-h-56 overflow-auto pr-1 [scrollbar-gutter:stable]">
+          <div className="max-h-56 overflow-auto pr-1 [scrollbar-gutter:stable]">
             <div className="flex flex-wrap gap-2">
               {filtered.map((p) => (
                 <button
@@ -591,21 +602,13 @@ function SkillPickerWithBrowse({
   return (
     <div className="space-y-3">
       <div className="space-y-2">
-        <Input
-          value={q}
-          placeholder="Search and add skills..."
-          onChange={(e) => setQ(e.target.value)}
-        />
-        <div className="text-xs text-neutral-500">
-          Click a skill pill below to add.
-        </div>
+        <Input value={q} placeholder="Search and add skills..." onChange={(e) => setQ(e.target.value)} />
+        <div className="text-xs text-neutral-500">Click a skill pill below to add.</div>
       </div>
 
       <div className="rounded-xl border bg-neutral-50 p-3">
         <div className="mb-2 flex items-center justify-between">
-          <div className="text-sm font-medium text-neutral-800">
-            {q.trim() ? "Matches" : "All Skills"}
-          </div>
+          <div className="text-sm font-medium text-neutral-800">{q.trim() ? "Matches" : "All Skills"}</div>
           <div className="text-xs text-neutral-500">{filtered.length} available</div>
         </div>
 
@@ -634,7 +637,6 @@ function SkillPickerWithBrowse({
   );
 }
 
-
 function CoursePickerWithBrowse({
   allCourses,
   selectedCourseCodes,
@@ -659,11 +661,7 @@ function CoursePickerWithBrowse({
   return (
     <div className="space-y-3">
       <div className="space-y-2">
-        <Input
-          value={q}
-          placeholder="Search and add courses..."
-          onChange={(e) => setQ(e.target.value)}
-        />
+        <Input value={q} placeholder="Search and add courses..." onChange={(e) => setQ(e.target.value)} />
         <div className="text-xs text-neutral-500">
           Click a course pill below to add (defaults to Medium).
         </div>
@@ -671,9 +669,7 @@ function CoursePickerWithBrowse({
 
       <div className="rounded-xl border bg-neutral-50 p-3">
         <div className="mb-2 flex items-center justify-between">
-          <div className="text-sm font-medium text-neutral-800">
-            {q.trim() ? "Matches" : "All Courses"}
-          </div>
+          <div className="text-sm font-medium text-neutral-800">{q.trim() ? "Matches" : "All Courses"}</div>
           <div className="text-xs text-neutral-500">{filtered.length} available</div>
         </div>
 
@@ -702,14 +698,11 @@ function CoursePickerWithBrowse({
   );
 }
 
-
-
 function pillClassForInterest(i: InterestLevel) {
   if (i === "High") return "pill-high";
   if (i === "Low") return "pill-low";
   return "pill-med";
 }
-
 
 function TAPickerWithBrowse({
   allTAs,
@@ -734,24 +727,14 @@ function TAPickerWithBrowse({
 
   return (
     <div className="space-y-3">
-      {/* Search */}
       <div className="space-y-2">
-        <Input
-          value={q}
-          placeholder="Search and add TAs..."
-          onChange={(e) => setQ(e.target.value)}
-        />
-        <div className="text-xs text-neutral-500">
-          Click a TA pill below to add.
-        </div>
+        <Input value={q} placeholder="Search and add TAs..." onChange={(e) => setQ(e.target.value)} />
+        <div className="text-xs text-neutral-500">Click a TA pill below to add.</div>
       </div>
 
-      {/* Browse / filtered list as pill grid */}
       <div className="rounded-xl border bg-neutral-50 p-3">
         <div className="mb-2 flex items-center justify-between">
-          <div className="text-sm font-medium text-neutral-800">
-            {q.trim() ? "Matches" : "All TAs"}
-          </div>
+          <div className="text-sm font-medium text-neutral-800">{q.trim() ? "Matches" : "All TAs"}</div>
           <div className="text-xs text-neutral-500">{filtered.length} available</div>
         </div>
 

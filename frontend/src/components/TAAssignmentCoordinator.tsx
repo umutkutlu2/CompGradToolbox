@@ -231,7 +231,6 @@ export default function TAAssignmentCoordinator({
     setTasToAdd([]);
     setDetailsOpen(true);
   };
-  };
 
   const toggleRemoveTA = (taName: string) => {
     setTasToRemove((prev) =>
@@ -239,11 +238,6 @@ export default function TAAssignmentCoordinator({
     );
   };
 
-  const toggleAddTA = (taName: string) => {
-    setTasToAdd((prev) =>
-      prev.includes(taName) ? prev.filter((t) => t !== taName) : [...prev, taName]
-    );
-  };
   const toggleAddTA = (taName: string) => {
     setTasToAdd((prev) =>
       prev.includes(taName) ? prev.filter((t) => t !== taName) : [...prev, taName]
@@ -443,12 +437,6 @@ export default function TAAssignmentCoordinator({
                           </td>
                           
                           <td className="py-4 px-4 ">
-                            <Button
-                              className="border rounded bg-amber-100 border-amber-200"
-                              size="sm"
-                              variant="ghost"
-                              onClick={() => handleViewDetails(course)}
-                            >
                             <Button
                               className="border rounded bg-amber-100 border-amber-200"
                               size="sm"

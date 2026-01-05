@@ -18,12 +18,9 @@ from app.routes import ta_assignments
 from app.routes import export_assignment_xlsx
 from app.routes import checkers
 from app.routes import register_finish
+from app.routes import users
 from app.routes.assignment_history import router as assignment_history_router
 from app.routes import import_excel
-
-
-
-
 from fastapi.middleware.cors import CORSMiddleware
 
 app = FastAPI()
@@ -58,6 +55,8 @@ app.include_router(assignment_history_router, prefix="/api")
 app.include_router(checkers.router, prefix="/api/checkers", tags=["checkers"])
 app.include_router(register_finish.router)
 app.include_router(import_excel.router)
+app.include_router(users.router, prefix="/api")
+
 
 
 
