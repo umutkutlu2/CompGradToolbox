@@ -5,6 +5,7 @@ import { Button } from "./ui/button";
 import { Input } from "./ui/input";
 import { Badge } from "./ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "./ui/tabs";
+import { apiUrl } from "../lib/api";
 import {
   Dialog,
   DialogContent,
@@ -12,8 +13,6 @@ import {
   DialogTitle,
   DialogDescription,
 } from "./ui/dialog";
-
-const API = "http://127.0.0.1:8000";
 
 type RunRow = {
   run_id: number;
@@ -57,7 +56,7 @@ export default function AssignmentHistory() {
   const fetchRuns = async () => {
     setLoading(true);
     try {
-      const res = await fetch(`${API}/api/assignment-runs?limit=200`);
+      const res = await fetch(apiUrl('/api/assignment-runs?limit=200'));
       if (!res.ok) throw new Error("Failed to fetch runs");
       const data = await res.json();
       setRuns(data ?? []);
@@ -87,7 +86,7 @@ export default function AssignmentHistory() {
     setDetailsLoading(true);
     setSelectedRun(null);
     try {
-      const res = await fetch(`${API}/api/assignment-runs/${run_id}`);
+      const res = await fetch(apiUrl(`/api/assignment-runs/${run_id}`));
       if (!res.ok) throw new Error("Failed to load run details");
       const data: RunDetail = await res.json();
       setSelectedRun(data);
@@ -245,7 +244,7 @@ export default function AssignmentHistory() {
                             onClick={async () => {
                                 if (!confirm(`Apply Run #${r.run_id}? This will overwrite the current active assignments.`)) return;
 
-                                const res = await fetch(`${API}/api/assignment-runs/${r.run_id}/apply?user=${encodeURIComponent("Admin")}`, {
+                                const res = await fetch(apiUrl(`/api/assignment-runs/${r.run_id}/apply?user=${encodeURIComponent("Admin")}`), {
                                 method: "POST",
                                 });
 
@@ -269,7 +268,7 @@ export default function AssignmentHistory() {
                             onClick={async () => {
                                 if (!confirm(`Delete run #${r.run_id}?`)) return;
 
-                                const res = await fetch(`/api/assignment-runs/${r.run_id}?user=${encodeURIComponent("Admin")}`, {
+                                const res = await fetch(apiUrl(`/api/assignment-runs/${r.run_id}?user=${encodeURIComponent("Admin")}`), {
                                 method: "DELETE",
                                 });
 

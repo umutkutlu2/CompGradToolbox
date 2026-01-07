@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { GraduationCap, UserSquare2, Loader2 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "./ui/card";
 import { Badge } from "./ui/badge";
+import { apiUrl } from "../lib/api";
 
 interface TA {
   ta_id: number;
@@ -35,8 +36,8 @@ export default function PeopleDirectory() {
     async function fetchData() {
     try {
         const [taRes, profRes] = await Promise.all([
-        fetch("/api/tas"),
-        fetch("/api/professors"),
+        fetch(apiUrl("/api/tas")),
+        fetch(apiUrl("/api/professors")),
         ]);
 
         if (!taRes.ok) {

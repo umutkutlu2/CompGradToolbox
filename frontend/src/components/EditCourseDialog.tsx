@@ -11,6 +11,7 @@ import { Button } from "./ui/button";
 import { Input } from "./ui/input";
 import { Badge } from "./ui/badge";
 import { Label } from "./ui/label";
+import { apiUrl } from "../lib/api";
 import {
   Select,
   SelectTrigger,
@@ -87,7 +88,7 @@ export default function EditCourseDialog({
     if (!course) return;
 
     const res = await fetch(
-      `http://127.0.0.1:8000/courses/update?user=${encodeURIComponent(username)}`,
+      apiUrl(`/courses/update?user=${encodeURIComponent(username)}`),
       {
         method: "PUT",
         headers: { "Content-Type": "application/json" },

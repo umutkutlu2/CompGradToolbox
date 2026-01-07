@@ -2,6 +2,7 @@
   import { Button } from './ui/button';
   import { GraduationCap } from 'lucide-react';
   import { UserRole } from '../App';
+  import { apiUrl } from '../lib/api';
 
 
   type Name = string;
@@ -28,7 +29,7 @@
 
     const handleSubmit = async () => {
       try {
-        const res = await fetch('http://localhost:8000/api/login', {
+        const res = await fetch(apiUrl('/api/login'), {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ username, password }),

@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { Card, CardContent } from "./ui/card";
 import { Badge } from "./ui/badge";
+import { apiUrl } from "../lib/api";
 
 import {
   Dialog,
@@ -28,7 +29,7 @@ export default function TACourses({ username }: { username: string }) {
   
 
   useEffect(() => {
-    fetch(`http://127.0.0.1:8000/courses/by-ta?username=${username}`)
+    fetch(apiUrl(`/courses/by-ta?username=${username}`))
       .then((r) => r.json())
       .then((data) => {
         const normalized = (data ?? []).map((c: any) => ({

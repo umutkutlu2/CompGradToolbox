@@ -32,6 +32,8 @@ export type CheckerReport = {
   debug?: { out_dir?: string };
 };
 
+import { apiUrl } from "./api";
+
 export async function uploadPdfToChecker(type: CheckerType, file: File, debug = false) {
   const formData = new FormData();
   formData.append("file", file);
@@ -39,12 +41,7 @@ export async function uploadPdfToChecker(type: CheckerType, file: File, debug = 
   const endpoint =
     type === "comp590" ? "/api/checkers/comp590" : "/api/checkers/comp291-391";
 
-  // Option A: use .env
-const base =
-  (import.meta.env.VITE_API_BASE_URL as string | undefined) ??
-  "http://localhost:8080"; // local dev için
-
-const url = `${base}${endpoint}${debug ? "?debug=1" : ""}`;
+  const url = `${apiUrl(endpoint)}${debug ? "?debug=1" : ""}`;
 
 
   const res = await fetch(url, { method: "POST", body: formData });

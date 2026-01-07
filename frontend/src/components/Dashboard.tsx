@@ -5,6 +5,7 @@ import { Button } from './ui/button';
 import { Badge } from './ui/badge';
 import { useEffect, useState } from 'react';
 import { ExcelImportCard } from './ExcelImportCard';
+import { apiUrl } from '../lib/api';
 
 interface DashboardProps {
   name: string;
@@ -76,7 +77,7 @@ export default function Dashboard({ name, userRole, username, onNavigate }: Dash
 
       try {
         const res = await fetch(
-          `http://127.0.0.1:8000/courses/by-professor?username=${username}`
+          apiUrl(`/courses/by-professor?username=${username}`)
         );
         if (!res.ok) throw new Error("Failed to fetch faculty courses");
 
@@ -122,7 +123,7 @@ export default function Dashboard({ name, userRole, username, onNavigate }: Dash
   useEffect(() => {
     const fetchSummary = async () => {
       try {
-        const res = await fetch("/api/dashboard");
+        const res = await fetch(apiUrl("/api/dashboard"));
         const data = await res.json();
         setSummary(data);
       } catch (err) {
@@ -134,7 +135,7 @@ export default function Dashboard({ name, userRole, username, onNavigate }: Dash
   useEffect(() => {
     const fetchActivity = async () => {
       try {
-        const res = await fetch("/api/logs");
+        const res = await fetch(apiUrl("/api/logs"));
         const data = await res.json();
         setActivity(data);
       } catch (err) {

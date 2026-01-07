@@ -4,6 +4,7 @@ import { Card, CardContent, CardHeader, CardTitle } from './ui/card';
 import { Input } from './ui/input';
 import { Button } from './ui/button';
 import { Badge } from './ui/badge';
+import { apiUrl } from '../lib/api';
 import {
   Select,
   SelectContent,
@@ -54,7 +55,7 @@ export default function TAAssignmentFaculty({ Name, userName }: TAAssignmentFacu
     try {
       setLoading(true);
       const response = await fetch(
-        `http://127.0.0.1:8000/courses/by-professor?username=${userName}`
+        apiUrl(`/courses/by-professor?username=${userName}`)
       );
       if (!response.ok) throw new Error('Failed to fetch courses');
 
@@ -84,7 +85,7 @@ export default function TAAssignmentFaculty({ Name, userName }: TAAssignmentFacu
 
     async function updateCourseInDB(updated: Course) {
     try {
-      const response = await fetch(`http://127.0.0.1:8000/courses/update?user=${encodeURIComponent(Name)}`, {
+      const response = await fetch(apiUrl(`/courses/update?user=${encodeURIComponent(Name)}`), {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({

@@ -4,6 +4,7 @@ import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "./ui/
 import { Badge } from "./ui/badge";
 import { Upload, CheckCircle2, X, Search } from "lucide-react";
 import { toast } from "sonner";
+import { apiUrl } from "../lib/api";
 import {
   Dialog,
   DialogContent,
@@ -141,7 +142,7 @@ export function ExcelImportCard() {
       const form = new FormData();
       form.append("file", file);
 
-      const res = await fetch("/api/import/excel", {
+      const res = await fetch(apiUrl("/api/import/excel"), {
         method: "POST",
         body: form,
       });

@@ -6,6 +6,7 @@ import { Input } from "./ui/input";
 import { Badge } from "./ui/badge";
 import { toast, Toaster } from "sonner";
 import EditCourseDialog from "./EditCourseDialog";
+import { apiUrl } from "../lib/api";
 import {
   Dialog,
   DialogContent,
@@ -75,7 +76,7 @@ const openCourseDetails = async (courseId: number) => {
   setDetailsLoading(true);
 
   try {
-    const res = await fetch(`http://127.0.0.1:8000/courses/${courseId}/details`);
+    const res = await fetch(apiUrl(`/courses/${courseId}/details`));
     if (!res.ok) throw new Error(await res.text());
 
     const data = await res.json();
@@ -105,7 +106,7 @@ const openCourseDetails = async (courseId: number) => {
     if (!courseDetails) return;
 
     const res = await fetch(
-        `http://127.0.0.1:8000/courses/update?user=${username}`,
+        apiUrl(`/courses/update?user=${username}`),
         {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
@@ -141,7 +142,7 @@ const openCourseDetails = async (courseId: number) => {
 
   /* ================= FETCH COURSES ================= */
   useEffect(() => {
-    fetch(`http://127.0.0.1:8000/courses/by-professor?username=${username}`)
+    fetch(apiUrl(`/courses/by-professor?username=${username}`))
       .then(res => res.json())
       .then((data) => {
         // ensure skills always exists
@@ -174,7 +175,7 @@ const openCourseDetails = async (courseId: number) => {
   /* ================= ADD COURSE ================= */
     const addCourse = async () => {
     const res = await fetch(
-        `http://127.0.0.1:8000/courses/add?username=${username}`,
+        apiUrl(`/courses/add?username=${username}`),
         {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -205,7 +206,7 @@ const openCourseDetails = async (courseId: number) => {
     setOpen(false);
 
     const refreshed = await fetch(
-        `http://127.0.0.1:8000/courses/by-professor?username=${username}`
+        apiUrl(`/courses/by-professor?username=${username}`)
     ).then(r => r.json());
 
     setCourses((refreshed ?? []).map((c: any) => ({ ...c, skills: c.skills ?? [] })));
@@ -222,7 +223,7 @@ const openCourseDetails = async (courseId: number) => {
     if (!courseToDelete) return;
 
     const res = await fetch(
-            `http://127.0.0.1:8000/courses/${courseToDelete.course_id}/professor?username=${username}`,
+            apiUrl(`/courses/${courseToDelete.course_id}/professor?username=${username}`),
             { method: "DELETE" }
         );
 

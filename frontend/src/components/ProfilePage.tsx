@@ -4,6 +4,7 @@ import { Card, CardHeader, CardTitle, CardContent } from "./ui/card";
 import { Button } from "./ui/button";
 import { Input } from "./ui/input";
 import { Label } from "./ui/label";
+import { apiUrl } from "../lib/api";
 import {
   Select,
   SelectTrigger,
@@ -13,8 +14,6 @@ import {
 } from "./ui/select";
 
 type UserRole = "faculty" | "student" | "admin";
-
-const API = "http://127.0.0.1:8000";
 
 type InterestLevel = "High" | "Medium" | "Low";
 
@@ -95,10 +94,10 @@ export default function ProfilePage({
       try {
         // 1) Load picklists in parallel
         const [skillsRes, coursesRes, profsRes, tasRes] = await Promise.all([
-          fetch(`${API}/api/skills`),
-          fetch(`${API}/courses`),
-          fetch(`${API}/api/professors`),
-          fetch(`${API}/api/tas`),
+          fetch(apiUrl('/api/skills')),
+          fetch(apiUrl('/courses')),
+          fetch(apiUrl('/api/professors')),
+          fetch(apiUrl('/api/tas')),
         ]);
 
         if (skillsRes.ok) setAllSkills(await skillsRes.json());
@@ -134,7 +133,7 @@ export default function ProfilePage({
         }
 
         // 2) Fetch user row FIRST (user_id -> ta_id/professor_id)
-        const userRes = await fetch(`${API}/api/users/${userId}`);
+        const userRes = await fetch(apiUrl(`/api/users/${userId}`));
         if (!userRes.ok) throw new Error("Failed to load user record");
         const user: UserRow = await userRes.json();
 
@@ -144,7 +143,7 @@ export default function ProfilePage({
         // 3) Then fetch the correct profile by ta_id / professor_id
         if (isStudent) {
           if (!user.ta_id) throw new Error("This user has no ta_id");
-          const res = await fetch(`${API}/api/tas/${user.ta_id}`);
+          const res = await fetch(apiUrl(`/api/tas/${user.ta_id}`));
           if (!res.ok) throw new Error("Failed to load TA profile");
           const data: TAProfile = await res.json();
 
@@ -159,7 +158,7 @@ export default function ProfilePage({
 
         if (isFaculty) {
           if (!user.professor_id) throw new Error("This user has no professor_id");
-          const res = await fetch(`${API}/api/professors/${user.professor_id}`);
+          const res = await fetch(apiUrl(`/api/professors/${user.professor_id}`));
           if (!res.ok) throw new Error("Failed to load professor profile");
           const data: ProfessorProfile = await res.json();
 
@@ -191,7 +190,7 @@ export default function ProfilePage({
       preferred_professor_ids: preferredProfessorIds,
     };
 
-    const res = await fetch(`${API}/api/tas/${taId}`, {
+    const res = await fetch(apiUrl(`/api/tas/${taId}`), {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(payload),
@@ -218,7 +217,7 @@ export default function ProfilePage({
       preferred_ta_ids: preferredTaIds,
     };
 
-    const res = await fetch(`${API}/api/professors/${professorId}`, {
+    const res = await fetch(apiUrl(`/api/professors/${professorId}`), {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(payload),

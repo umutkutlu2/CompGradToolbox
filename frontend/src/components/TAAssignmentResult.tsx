@@ -3,6 +3,7 @@ import { Loader2 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "./ui/card";
 import { Badge } from "./ui/badge";
 import { Button } from "./ui/button";
+import { apiUrl } from "../lib/api";
 
 interface AssignmentResult {
   assignments: Record<string, string[]>;
@@ -18,7 +19,7 @@ export default function TAAssignmentResult() {
     async function fetchAssignment() {
       setLoading(true);
       try {
-        const res = await fetch("/api/run-assignment");
+        const res = await fetch(apiUrl("/api/run-assignment"));
         if (!res.ok) throw new Error("Failed to fetch assignments");
         const data = await res.json();
         setResult(data);

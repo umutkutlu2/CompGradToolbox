@@ -5,6 +5,7 @@ import { Button } from './ui/button';
 import { Badge } from './ui/badge';
 import { Slider } from './ui/slider';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from './ui/tabs';
+import { apiUrl } from '../lib/api';
 import {
   Dialog,
   DialogContent,
@@ -79,7 +80,7 @@ export default function TAAssignmentCoordinator({
   useEffect(() => {
     const fetchWeights = async () => {
       try {
-        const res = await fetch("/api/weights");
+        const res = await fetch(apiUrl("/api/weights"));
         const data = await res.json();
         setSkillWeight([Math.round(data.course_pref * 100)]);
         setFacultyPrefWeight([Math.round(data.prof_pref * 100)]);
@@ -99,7 +100,7 @@ export default function TAAssignmentCoordinator({
   useEffect(() => {
     const fetchSaved = async () => {
       try {
-        const res = await fetch("/api/get-assignments");
+        const res = await fetch(apiUrl("/api/get-assignments"));
         const data = await res.json();
         
         if (data && Object.keys(data.assignments || {}).length > 0) {
@@ -121,7 +122,7 @@ export default function TAAssignmentCoordinator({
         course_pref: skillWeight[0] / 100,
         workload_balance: workloadWeight[0] / 100,
       };
-      await fetch("/api/weights", {
+      await fetch(apiUrl("/api/weights"), {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),
@@ -148,7 +149,7 @@ export default function TAAssignmentCoordinator({
         user: name,
       };
       
-      const res = await fetch("/api/override-assignment", {
+      const res = await fetch(apiUrl("/api/override-assignment"), {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),
@@ -156,7 +157,7 @@ export default function TAAssignmentCoordinator({
       
       if (!res.ok) throw new Error("Failed to save override");
       
-      const updated = await fetch("/api/get-assignments");
+      const updated = await fetch(apiUrl("/api/get-assignments"));
       const updatedData = await updated.json();
       setResult(updatedData);
       
@@ -175,9 +176,9 @@ export default function TAAssignmentCoordinator({
   const runAssignment = async () => {
     setLoading(true);
     try {
-      await fetch(`/api/run-assignment?user=Admin`);
+      await fetch(apiUrl(`/api/run-assignment?user=Admin`));
       
-      const saved = await fetch("/api/get-assignments");
+      const saved = await fetch(apiUrl("/api/get-assignments"));
       const savedData = await saved.json();
       
       setResult(savedData);
@@ -352,7 +353,7 @@ export default function TAAssignmentCoordinator({
               className="gap-2"
               onClick={() =>
                 window.open(
-                  "http://127.0.0.1:8000/api/export-assignments-xlsx",
+                  apiUrl("/api/export-assignments-xlsx"),
                   "_blank"
                 )
               }

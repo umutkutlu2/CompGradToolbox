@@ -1,9 +1,10 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import { GraduationCap, Users, User } from "lucide-react";
 import { Button } from "./ui/button";
 import { Badge } from "./ui/badge";
 import { UserRole } from "../App";
 import { Slider } from "./ui/slider";
+import { apiUrl } from "../lib/api";
 
 import { Popover, PopoverContent, PopoverTrigger } from "./ui/popover";
 import {
@@ -48,7 +49,6 @@ export default function RegisterScreen({
   onBackToLogin,
   onAutoLogin,
 }: RegisterScreenProps) {
-  const apiBase = useMemo(() => "http://localhost:8000", []);
 
   const [step, setStep] = useState<Step>("role");
   const isNonEmpty = (v: string) => v.trim().length > 0;
@@ -115,7 +115,7 @@ export default function RegisterScreen({
 
   useEffect(() => {
     if (step === "ta") {
-      fetch(`${apiBase}/api/professors`)
+      fetch(apiUrl('/api/professors'))
         .then((res) => res.json())
         .then((data) =>
           setProfessors(
@@ -127,11 +127,11 @@ export default function RegisterScreen({
         )
         .catch(console.error);
     }
-  }, [step, apiBase]);
+  }, [step]);
 
   useEffect(() => {
     if (step === "faculty") {
-      fetch(`${apiBase}/api/tas`)
+      fetch(apiUrl('/api/tas'))
         .then((res) => res.json())
         .then((data) =>
           setTas(
@@ -143,7 +143,7 @@ export default function RegisterScreen({
         )
         .catch(console.error);
     }
-  }, [step, apiBase]);
+  }, [step]);
 
   /* ================= HELPERS ================= */
 
@@ -156,7 +156,7 @@ export default function RegisterScreen({
   const parsedSkills = parseCsvStrings(skillsText);
 
   const autoLogin = async () => {
-    const res = await fetch(`${apiBase}/api/login`, {
+    const res = await fetch(apiUrl('/api/login'), {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ username, password }),
@@ -199,7 +199,7 @@ export default function RegisterScreen({
       if (!isNonEmpty(password)) throw new Error("Password is required");
 
       // Phase 1: start registration -> get registration_token (no user created yet)
-      const res = await fetch(`${apiBase}/api/register`, {
+      const res = await fetch(apiUrl('/api/register'), {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ name, username, password, role }),
@@ -228,7 +228,7 @@ export default function RegisterScreen({
       const skills = parseCsvStrings(skillsText);
 
       // Phase 2: finish registration (atomic: create user + ta + links)
-      const res = await fetch(`${apiBase}/api/register/finish`, {
+      const res = await fetch(apiUrl('/api/register/finish'), {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -264,7 +264,7 @@ export default function RegisterScreen({
       setError("");
       if (!registrationToken) throw new Error("Missing registration token");
 
-      const res = await fetch(`${apiBase}/api/register/finish`, {
+      const res = await fetch(apiUrl('/api/register/finish'), {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({

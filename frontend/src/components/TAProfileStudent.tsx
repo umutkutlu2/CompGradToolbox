@@ -4,6 +4,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "./ui/card";
 import { Input } from "./ui/input";
 import { Button } from "./ui/button";
 import { Badge } from "./ui/badge";
+import { apiUrl } from "../lib/api";
 import {
   Select,
   SelectContent,
@@ -22,8 +23,6 @@ import {
 type TAProfileStudentProps = {
   taId: number | null;
 };
-
-const API = "http://127.0.0.1:8000";
 
 type AssignmentRow = {
   assignment_id: number;
@@ -49,7 +48,7 @@ export default function TAProfileStudent({ taId }: TAProfileStudentProps) {
         setLoading(true);
 
         // ✅ You need to implement this endpoint (backend snippet below)
-        const res = await fetch(`${API}/api/ta-assignments/by-ta?ta_id=${taId}`);
+        const res = await fetch(apiUrl(`/api/ta-assignments/by-ta?ta_id=${taId}`));
         if (!res.ok) throw new Error("Failed to fetch TA assignments");
 
         const data = await res.json();
