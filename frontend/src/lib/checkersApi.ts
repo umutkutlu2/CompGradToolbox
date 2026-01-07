@@ -40,8 +40,12 @@ export async function uploadPdfToChecker(type: CheckerType, file: File, debug = 
     type === "comp590" ? "/api/checkers/comp590" : "/api/checkers/comp291-391";
 
   // Option A: use .env
-  const base = import.meta.env.VITE_API_URL ?? "";
-  const url = `${base}${endpoint}${debug ? "?debug=1" : ""}`;
+const base =
+  (import.meta.env.VITE_API_BASE_URL as string | undefined) ??
+  "http://localhost:8080"; // local dev için
+
+const url = `${base}${endpoint}${debug ? "?debug=1" : ""}`;
+
 
   const res = await fetch(url, { method: "POST", body: formData });
 
