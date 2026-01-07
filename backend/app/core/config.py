@@ -16,10 +16,11 @@ class Settings:
     ALGORITHM: str = os.getenv("ALGORITHM", "HS256")
     
     # CORS allowed origins - comma-separated list
-    # Defaults for local dev, production should set via ALLOWED_ORIGINS env var
+    # Defaults include local dev + production domains
+    # Production can override via ALLOWED_ORIGINS env var
     _allowed_origins_str: str = os.getenv(
         "ALLOWED_ORIGINS",
-        "http://localhost:5173,http://127.0.0.1:5173,http://localhost:3000,http://127.0.0.1:3000"
+        "https://compgradtoolbox.online,https://www.compgradtoolbox.online,http://localhost:5173,http://127.0.0.1:5173,http://localhost:3000,http://127.0.0.1:3000"
     )
     
     @property

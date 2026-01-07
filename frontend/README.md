@@ -17,6 +17,8 @@
 
   - `VITE_API_BASE_URL`: The base URL of the backend API
     - **Required value**: `https://compgradtoolbox-production.up.railway.app`
+    - **Important**: Must include the `https://` protocol prefix
+    - If the protocol is missing, the app will auto-prefix with `https://`, but it's recommended to set it correctly
     - This ensures the frontend connects to the production backend instead of localhost
 
   To set this in Vercel:

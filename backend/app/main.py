@@ -1,5 +1,8 @@
+import os
+from pathlib import Path
 from fastapi import FastAPI
 from app.core.config import settings
+from app.core.database import get_db_connection
 from app.routes import algorithm
 from app.routes import algorithm_excel
 from app.routes import assignment
@@ -24,6 +27,54 @@ from app.routes import import_excel
 from fastapi.middleware.cors import CORSMiddleware
 
 app = FastAPI()
+
+
+def init_database_schema():
+    """Initialize database schema on startup. Safe to run multiple times (uses IF NOT EXISTS)."""
+    try:
+        # Get the path to schema.sql relative to this file
+        backend_dir = Path(__file__).parent.parent
+        schema_path = backend_dir.parent / "database" / "schema.sql"
+        
+        if not schema_path.exists():
+            print(f"⚠️  Schema file not found at {schema_path}, skipping schema initialization.")
+            return
+        
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        
+        try:
+            with open(schema_path, "r") as f:
+                sql_commands = f.read()
+            
+            # Execute each command (split by semicolon)
+            for command in sql_commands.split(";"):
+                command = command.strip()
+                if command and not command.startswith("--"):
+                    try:
+                        cursor.execute(command)
+                    except Exception as e:
+                        # Ignore errors for CREATE DATABASE IF NOT EXISTS if DB already exists
+                        if "database exists" not in str(e).lower() and "already exists" not in str(e).lower():
+                            print(f"⚠️  SQL execution warning: {e}")
+            
+            conn.commit()
+            print("✓ Database schema initialized successfully.")
+        except Exception as e:
+            print(f"⚠️  Error initializing schema: {e}")
+            conn.rollback()
+        finally:
+            cursor.close()
+            conn.close()
+    except Exception as e:
+        print(f"⚠️  Could not initialize database schema: {e}")
+        print("   This is OK if tables already exist. Continuing startup...")
+
+
+@app.on_event("startup")
+async def startup_event():
+    """Run database schema initialization on startup."""
+    init_database_schema()
 
 # Enable CORS for frontend communication
 # Must be added BEFORE routers are included
