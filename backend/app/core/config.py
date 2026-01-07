@@ -5,7 +5,8 @@ from dotenv import load_dotenv
 load_dotenv()
 
 class Settings:
-    PORT: int = int(os.getenv("PORT", 3306))
+    PORT: int = int(os.getenv("PORT", 8080))      # SADECE web server için
+    DB_PORT: int = int(os.getenv("DB_PORT", 3306))  # SADECE MySQL için
 
     DB_HOST: str = os.getenv("DB_HOST", "localhost")
     DB_USER: str = os.getenv("DB_USER", "root")
