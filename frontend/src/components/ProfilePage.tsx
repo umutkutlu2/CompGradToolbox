@@ -59,6 +59,7 @@ export default function ProfilePage({
   const isFaculty = userRole === "faculty";
 
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
   // picklists
   const [allSkills, setAllSkills] = useState<string[]>([]);
@@ -91,6 +92,7 @@ export default function ProfilePage({
 
     const load = async () => {
       setLoading(true);
+      setError(null);
       try {
         // 1) Load picklists in parallel
         const [skillsRes, coursesRes, profsRes, tasRes] = await Promise.all([
@@ -134,17 +136,29 @@ export default function ProfilePage({
 
         // 2) Fetch user row FIRST (user_id -> ta_id/professor_id)
         const userRes = await fetch(apiUrl(`/api/users/${userId}`));
-        if (!userRes.ok) throw new Error("Failed to load user record");
+        if (!userRes.ok) {
+          const errorText = await userRes.text();
+          throw new Error(`Failed to load user record: ${errorText || userRes.statusText}`);
+        }
         const user: UserRow = await userRes.json();
+
+        if (!user) {
+          throw new Error("User record not found");
+        }
 
         setTaId(user.ta_id ?? null);
         setProfessorId(user.professor_id ?? null);
 
         // 3) Then fetch the correct profile by ta_id / professor_id
         if (isStudent) {
-          if (!user.ta_id) throw new Error("This user has no ta_id");
+          if (!user.ta_id) {
+            throw new Error("This user has not completed TA onboarding. Please complete onboarding first.");
+          }
           const res = await fetch(apiUrl(`/api/tas/${user.ta_id}`));
-          if (!res.ok) throw new Error("Failed to load TA profile");
+          if (!res.ok) {
+            const errorText = await res.text();
+            throw new Error(`Failed to load TA profile: ${errorText || res.statusText}`);
+          }
           const data: TAProfile = await res.json();
 
           setTaName(data.name ?? "");
@@ -157,14 +171,22 @@ export default function ProfilePage({
         }
 
         if (isFaculty) {
-          if (!user.professor_id) throw new Error("This user has no professor_id");
+          if (!user.professor_id) {
+            throw new Error("This user has not completed faculty onboarding. Please complete onboarding first.");
+          }
           const res = await fetch(apiUrl(`/api/professors/${user.professor_id}`));
-          if (!res.ok) throw new Error("Failed to load professor profile");
+          if (!res.ok) {
+            const errorText = await res.text();
+            throw new Error(`Failed to load professor profile: ${errorText || res.statusText}`);
+          }
           const data: ProfessorProfile = await res.json();
 
           setProfName(data.name ?? "");
           setPreferredTaIds((data.preferred_tas ?? []).map((t) => t.ta_id));
         }
+      } catch (err: any) {
+        console.error("Profile load error:", err);
+        setError(err.message || "Failed to load profile. Please try refreshing the page.");
       } finally {
         setLoading(false);
       }
@@ -247,6 +269,20 @@ export default function ProfilePage({
 
   if (loading) {
     return <div className="text-sm text-neutral-600">Loading profile…</div>;
+  }
+
+  if (error) {
+    return (
+      <Card>
+        <CardHeader>
+          <CardTitle>Profile Error</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="text-sm text-red-600 mb-4">{error}</div>
+          <Button onClick={() => window.location.reload()}>Refresh Page</Button>
+        </CardContent>
+      </Card>
+    );
   }
 
   return (

@@ -14,7 +14,7 @@ def get_db_connection():
             user=settings.DB_USER,
             database=settings.DB_NAME,
             password=settings.DB_PASSWORD,
-            port=settings.DB_PORT
+            port=settings.PORT
         )
 
         if connection.is_connected():
