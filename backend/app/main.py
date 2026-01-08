@@ -141,5 +141,8 @@ def config_check():
         "status": "ok",
         "allowed_origins": settings.ALLOWED_ORIGINS,
         "db_host": settings.DB_HOST,
+        "db_port": settings.DB_PORT,
+        "db_name": settings.DB_NAME,
         "db_user": settings.DB_USER,
+        # Do not expose password
     }

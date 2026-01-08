@@ -1,16 +1,83 @@
 import os
 from typing import List
+from urllib.parse import urlparse
 from dotenv import load_dotenv
 
 load_dotenv()
 
 class Settings:
-    PORT: int = int(os.getenv("PORT", 3306))
+    # App port (for uvicorn server)
+    PORT: int = int(os.getenv("PORT", "8000"))
 
-    DB_HOST: str = os.getenv("DB_HOST", "localhost")
-    DB_USER: str = os.getenv("DB_USER", "root")
-    DB_PASSWORD: str = os.getenv("DB_PASSWORD", "Khalil2003")
-    DB_NAME: str = os.getenv("DB_NAME", "TA_Assignment_System")
+    # Database configuration with Railway support
+    # Supports: DATABASE_URL, MYSQL* vars, or DB_* vars (in that order)
+    def _parse_database_config(self):
+        """Parse database configuration from environment variables.
+        Supports Railway's MYSQL* vars, DATABASE_URL, or legacy DB_* vars.
+        """
+        # Try DATABASE_URL first (Railway format: mysql://user:pass@host:port/dbname)
+        database_url = os.getenv("DATABASE_URL")
+        if database_url:
+            try:
+                parsed = urlparse(database_url)
+                return {
+                    "host": parsed.hostname or "localhost",
+                    "port": parsed.port or 3306,
+                    "user": parsed.username or "root",
+                    "password": parsed.password or "",
+                    "name": parsed.path.lstrip("/") if parsed.path else "TA_Assignment_System"
+                }
+            except Exception as e:
+                print(f"Warning: Failed to parse DATABASE_URL: {e}, falling back to other vars")
+        
+        # Try Railway MYSQL* vars
+        mysql_host = os.getenv("MYSQLHOST")
+        if mysql_host:
+            return {
+                "host": mysql_host,
+                "port": int(os.getenv("MYSQLPORT", "3306")),
+                "user": os.getenv("MYSQLUSER", "root"),
+                "password": os.getenv("MYSQLPASSWORD", ""),
+                "name": os.getenv("MYSQLDATABASE", "TA_Assignment_System")
+            }
+        
+        # Fall back to legacy DB_* vars
+        return {
+            "host": os.getenv("DB_HOST", "localhost"),
+            "port": int(os.getenv("DB_PORT", "3306")),
+            "user": os.getenv("DB_USER", "root"),
+            "password": os.getenv("DB_PASSWORD", "Khalil2003"),
+            "name": os.getenv("DB_NAME", "TA_Assignment_System")
+        }
+
+    _db_config = None
+    
+    @property
+    def _db_cfg(self):
+        """Lazy-load database config."""
+        if self._db_config is None:
+            self._db_config = self._parse_database_config()
+        return self._db_config
+
+    @property
+    def DB_HOST(self) -> str:
+        return self._db_cfg["host"]
+
+    @property
+    def DB_PORT(self) -> int:
+        return self._db_cfg["port"]
+
+    @property
+    def DB_USER(self) -> str:
+        return self._db_cfg["user"]
+
+    @property
+    def DB_PASSWORD(self) -> str:
+        return self._db_cfg["password"]
+
+    @property
+    def DB_NAME(self) -> str:
+        return self._db_cfg["name"]
 
     SECRET_KEY: str = os.getenv("SECRET_KEY", "supersecret")
     ALGORITHM: str = os.getenv("ALGORITHM", "HS256")
